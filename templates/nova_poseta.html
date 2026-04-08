@@ -1,0 +1,362 @@
+{% extends 'base.html' %}
+{% block title %}Nova poseta — {{ pacijent.ime }} {{ pacijent.prezime }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-journal-plus me-2"></i>Nova poseta</h1>
+  <p class="text-muted mb-0">Pacijent: <strong>{{ pacijent.prezime }}, {{ pacijent.ime }}</strong></p>
+</div>
+
+<div class="card" style="max-width:740px">
+  <div class="card-body">
+    <form method="post" id="forma-poseta">
+      <div class="row g-3">
+
+        <div class="col-sm-4">
+          <label class="form-label fw-semibold">Datum <span class="text-danger">*</span></label>
+          <input type="date" name="datum" class="form-control" value="{{ danas }}" required>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Anamneza</label>
+          <textarea name="anamneza" class="form-control" rows="3"
+                    placeholder="Tegobe, simptomi, trajanje..."></textarea>
+        </div>
+
+        <!-- MKB-10 Dijagnoze -->
+        <div class="col-12">
+          <label class="form-label fw-semibold">
+            Dijagnoza
+            <span class="text-muted fw-normal small ms-1">— do 10, šifra ili naziv</span>
+          </label>
+          <div id="dijagnoze-kontejner">
+            {% for i in range(1, 11) %}
+            <div class="dijagnoza-red mb-2 position-relative {% if i > 1 %}d-none{% endif %}" id="dred-{{ i }}">
+              <div class="input-group">
+                <span class="input-group-text text-muted small" style="width:32px;justify-content:center">{{ i }}</span>
+                <input type="text" class="form-control mkb-input" id="mkb-inp-{{ i }}"
+                       placeholder="{% if i == 1 %}Šifra ili naziv dijagnoze...{% else %}Dodatna dijagnoza{% endif %}"
+                       autocomplete="off" data-idx="{{ i }}">
+                <button type="button" class="btn btn-outline-secondary mkb-clr"
+                        data-idx="{{ i }}" style="display:none">✕</button>
+                {% if i > 1 %}
+                <button type="button" class="btn btn-outline-danger ukloni-dred" data-idx="{{ i }}">
+                  <i class="bi bi-dash"></i>
+                </button>
+                {% endif %}
+              </div>
+              <input type="hidden" name="dijagnoza_{{ i }}" id="mkb-val-{{ i }}">
+              <div class="mkb-dd dropdown-menu shadow" id="mkb-dd-{{ i }}"
+                   style="display:none;max-height:240px;overflow-y:auto;position:absolute;z-index:1000;min-width:420px;top:100%"></div>
+              <div id="mkb-sel-{{ i }}" style="display:none" class="mt-1">
+                <span class="badge bg-primary py-1 px-2 small">
+                  <i class="bi bi-check-circle me-1"></i><span id="mkb-badge-{{ i }}"></span>
+                </span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <button type="button" class="btn btn-outline-secondary btn-sm mt-1" id="dodaj-dg">
+            <i class="bi bi-plus me-1"></i>Dodaj dijagnozu
+          </button>
+        </div>
+
+        <!-- Lekovi -->
+        <div class="col-12">
+          <label class="form-label fw-semibold">
+            Terapija
+            <span class="text-muted fw-normal small ms-1">— do 5 lekova</span>
+          </label>
+          <div id="lekovi-kontejner">
+            {% for i in range(1, 6) %}
+            <div class="lek-red mb-2 position-relative {% if i > 1 %}d-none{% endif %}" id="lred-{{ i }}">
+              <div class="input-group">
+                <span class="input-group-text text-muted small" style="width:32px;justify-content:center">{{ i }}</span>
+                <input type="text" class="form-control lek-input" id="lek-inp-{{ i }}"
+                       placeholder="{% if i == 1 %}Naziv leka...{% else %}Dodatni lek{% endif %}"
+                       autocomplete="off" data-idx="{{ i }}">
+                <button type="button" class="btn btn-outline-secondary lek-clr"
+                        data-idx="{{ i }}" style="display:none">✕</button>
+                {% if i > 1 %}
+                <button type="button" class="btn btn-outline-danger ukloni-lred" data-idx="{{ i }}">
+                  <i class="bi bi-dash"></i>
+                </button>
+                {% endif %}
+              </div>
+              <input type="hidden" name="lek_naziv_{{ i }}" id="lek-naziv-{{ i }}">
+              <input type="hidden" name="lek_inn_{{ i }}" id="lek-inn-{{ i }}">
+              <input type="hidden" name="lek_atc_{{ i }}" id="lek-atc-{{ i }}">
+              <input type="hidden" name="lek_oblik_{{ i }}" id="lek-oblik-{{ i }}">
+              <input type="hidden" name="lek_jacina_{{ i }}" id="lek-jacina-{{ i }}">
+              <div class="lek-dd dropdown-menu shadow" id="lek-dd-{{ i }}"
+                   style="display:none;max-height:260px;overflow-y:auto;position:absolute;z-index:1000;min-width:420px;top:100%"></div>
+              <div class="lek-meta-panel mt-1" id="lek-meta-{{ i }}" style="display:none">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <span class="badge bg-success py-1 px-2 small">
+                    <i class="bi bi-capsule me-1"></i><span class="lek-badge-naziv"></span>
+                  </span>
+                  <input type="text" name="lek_doza_{{ i }}" class="form-control form-control-sm"
+                         placeholder="Doza (npr. 500mg, 1 tableta)" style="max-width:200px">
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <button type="button" class="btn btn-outline-secondary btn-sm mt-1" id="dodaj-lek">
+            <i class="bi bi-plus me-1"></i>Dodaj lek
+          </button>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Napomena</label>
+          <textarea name="napomena" class="form-control" rows="2"
+                    placeholder="Interna napomena, kontrolni pregled..."></textarea>
+        </div>
+
+        <div class="col-12 d-flex gap-2 pt-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1"></i>Sačuvaj posetu
+          </button>
+          <a href="{{ url_for('pacijent_detalji', pid=pacijent.id) }}"
+             class="btn btn-outline-secondary">Otkaži</a>
+        </div>
+
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.mkb-item,.lek-item{padding:.45rem 1rem;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:.87rem}
+.mkb-item:hover,.mkb-item.ak,.lek-item:hover,.lek-item.ak{background:#e8f4fd}
+.mkb-sifra{font-weight:700;color:#1a5276;font-family:monospace;margin-right:.4rem}
+.lek-naziv-txt{font-weight:700;color:#1a5276}
+.lek-meta-txt{color:#888;font-size:.8rem}
+</style>
+
+<script>
+// ── MKB-10 autocomplete ───────────────────────────────────────────────────────
+const mkbSt = {};
+function mkbInit(idx) {
+  mkbSt[idx] = {ak:-1, res:[], timer:null};
+  const inp = document.getElementById(`mkb-inp-${idx}`);
+  const dd  = document.getElementById(`mkb-dd-${idx}`);
+  const val = document.getElementById(`mkb-val-${idx}`);
+  const sel = document.getElementById(`mkb-sel-${idx}`);
+  const clr = inp.parentElement.querySelector('.mkb-clr');
+
+  inp.addEventListener('input', () => {
+    clearTimeout(mkbSt[idx].timer);
+    val.value = ''; sel.style.display = 'none';
+    if (clr) clr.style.display = inp.value ? 'block' : 'none';
+    if (inp.value.trim().length < 2) { mkbZatvori(idx); return; }
+    mkbSt[idx].timer = setTimeout(() => mkbTrazi(idx, inp.value.trim()), 250);
+  });
+  inp.addEventListener('keydown', e => {
+    const items = dd.querySelectorAll('.mkb-item');
+    if (e.key==='ArrowDown'){e.preventDefault();mkbSt[idx].ak=Math.min(mkbSt[idx].ak+1,items.length-1);mkbOsveziAk(idx,items);}
+    else if(e.key==='ArrowUp'){e.preventDefault();mkbSt[idx].ak=Math.max(mkbSt[idx].ak-1,0);mkbOsveziAk(idx,items);}
+    else if(e.key==='Enter'){e.preventDefault();if(mkbSt[idx].ak>=0&&mkbSt[idx].res[mkbSt[idx].ak])mkbIzaberi(idx,mkbSt[idx].res[mkbSt[idx].ak]);}
+    else if(e.key==='Escape')mkbZatvori(idx);
+  });
+  if (clr) clr.addEventListener('click', () => {
+    inp.value=''; val.value=''; sel.style.display='none'; clr.style.display='none';
+    mkbZatvori(idx); inp.focus();
+  });
+  document.addEventListener('click', e => { if(!e.target.closest(`#dred-${idx}`)) mkbZatvori(idx); });
+}
+async function mkbTrazi(idx, q) {
+  const r = await fetch(`/mkb10/pretraga?q=${encodeURIComponent(q)}`);
+  mkbSt[idx].res = await r.json(); mkbSt[idx].ak = -1; mkbPrikazi(idx);
+}
+function mkbPrikazi(idx) {
+  const dd = document.getElementById(`mkb-dd-${idx}`);
+  dd.innerHTML = '';
+  if (!mkbSt[idx].res.length) {
+    dd.innerHTML = '<div class="mkb-item text-muted">Nema rezultata</div>';
+  } else {
+    mkbSt[idx].res.forEach((item, i) => {
+      const div = document.createElement('div'); div.className = 'mkb-item';
+      div.innerHTML = `<span class="mkb-sifra">${item.sifra}</span>${item.naziv}`;
+      div.addEventListener('click', () => mkbIzaberi(idx, item));
+      div.addEventListener('mouseenter', () => { mkbSt[idx].ak=i; mkbOsveziAk(idx,dd.querySelectorAll('.mkb-item')); });
+      dd.appendChild(div);
+    });
+  }
+  dd.style.display = 'block';
+}
+function mkbIzaberi(idx, item) {
+  const tekst = `${item.sifra} — ${item.naziv}`;
+  document.getElementById(`mkb-inp-${idx}`).value = tekst;
+  document.getElementById(`mkb-val-${idx}`).value = tekst;
+  document.getElementById(`mkb-badge-${idx}`).textContent = tekst;
+  document.getElementById(`mkb-sel-${idx}`).style.display = 'block';
+  const clr = document.getElementById(`mkb-inp-${idx}`).parentElement.querySelector('.mkb-clr');
+  if (clr) clr.style.display = 'block';
+  mkbZatvori(idx);
+  // Automatski otvori sledeći red
+  const sled = idx + 1;
+  if (sled <= 10) {
+    const r = document.getElementById(`dred-${sled}`);
+    if (r && r.classList.contains('d-none')) { r.classList.remove('d-none'); if(!mkbSt[sled]) mkbInit(sled); }
+  }
+}
+function mkbOsveziAk(idx, items) {
+  items.forEach((el,i) => el.classList.toggle('ak', i===mkbSt[idx].ak));
+  if (mkbSt[idx].ak>=0) items[mkbSt[idx].ak]?.scrollIntoView({block:'nearest'});
+}
+function mkbZatvori(idx) { document.getElementById(`mkb-dd-${idx}`).style.display='none'; mkbSt[idx].ak=-1; }
+
+let dgVidljivih = 1;
+document.getElementById('dodaj-dg').addEventListener('click', () => {
+  if (dgVidljivih >= 10) return;
+  dgVidljivih++;
+  const r = document.getElementById(`dred-${dgVidljivih}`);
+  r.classList.remove('d-none');
+  if (!mkbSt[dgVidljivih]) mkbInit(dgVidljivih);
+  document.getElementById(`mkb-inp-${dgVidljivih}`).focus();
+  if (dgVidljivih >= 10) document.getElementById('dodaj-dg').style.display = 'none';
+});
+document.querySelectorAll('.ukloni-dred').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const idx = parseInt(btn.dataset.idx);
+    document.getElementById(`dred-${idx}`).classList.add('d-none');
+    document.getElementById(`mkb-inp-${idx}`).value = '';
+    document.getElementById(`mkb-val-${idx}`).value = '';
+    document.getElementById(`mkb-sel-${idx}`).style.display = 'none';
+    if (dgVidljivih === idx) dgVidljivih--;
+    document.getElementById('dodaj-dg').style.display = '';
+  });
+});
+mkbInit(1);
+
+// ── Lekovi autocomplete ───────────────────────────────────────────────────────
+const lekSt = {};
+function lekInit(idx) {
+  lekSt[idx] = {ak:-1, res:[], timer:null};
+  const inp  = document.getElementById(`lek-inp-${idx}`);
+  const dd   = document.getElementById(`lek-dd-${idx}`);
+  const meta = document.getElementById(`lek-meta-${idx}`);
+  const clr  = inp.parentElement.querySelector('.lek-clr');
+
+  inp.addEventListener('input', () => {
+    clearTimeout(lekSt[idx].timer);
+    document.getElementById(`lek-naziv-${idx}`).value = '';
+    meta.style.display = 'none';
+    if (clr) clr.style.display = inp.value ? 'block' : 'none';
+    if (inp.value.trim().length < 2) { lekZatvori(idx); return; }
+    lekSt[idx].timer = setTimeout(() => lekTrazi(idx, inp.value.trim()), 300);
+  });
+  inp.addEventListener('keydown', e => {
+    const items = dd.querySelectorAll('.lek-item');
+    if (e.key==='ArrowDown'){e.preventDefault();lekSt[idx].ak=Math.min(lekSt[idx].ak+1,items.length-1);lekOsveziAk(idx,items);}
+    else if(e.key==='ArrowUp'){e.preventDefault();lekSt[idx].ak=Math.max(lekSt[idx].ak-1,0);lekOsveziAk(idx,items);}
+    else if(e.key==='Enter'){e.preventDefault();if(lekSt[idx].ak>=0&&lekSt[idx].res[lekSt[idx].ak])lekIzaberi(idx,lekSt[idx].res[lekSt[idx].ak]);}
+    else if(e.key==='Escape')lekZatvori(idx);
+  });
+  if (clr) clr.addEventListener('click', () => {
+    inp.value=''; document.getElementById(`lek-naziv-${idx}`).value='';
+    meta.style.display='none'; clr.style.display='none';
+    lekZatvori(idx); inp.focus();
+  });
+  document.addEventListener('click', e => { if(!e.target.closest(`#lred-${idx}`)) lekZatvori(idx); });
+}
+async function lekTrazi(idx, q) {
+  const r = await fetch(`/lekovi/pretraga?q=${encodeURIComponent(q)}`);
+  lekSt[idx].res = await r.json(); lekSt[idx].ak = -1; lekPrikazi(idx);
+}
+function lekPrikazi(idx) {
+  const dd = document.getElementById(`lek-dd-${idx}`);
+  dd.innerHTML = '';
+  if (!lekSt[idx].res.length) {
+    dd.innerHTML = '<div class="lek-item text-muted">Nema u ALIMS bazi — unesite ručno pa pritisnite Enter</div>';
+  } else {
+    lekSt[idx].res.forEach((item, i) => {
+      const div = document.createElement('div'); div.className = 'lek-item';
+      let html = `<span class="lek-naziv-txt">${item.naziv}</span>`;
+      if (item.inn) html += ` <span style="color:#555;font-style:italic">(${item.inn})</span>`;
+      let meta = [];
+      if (item.farmaceutski_oblik) meta.push(item.farmaceutski_oblik);
+      if (item.jacina) meta.push(item.jacina);
+      if (item.atc_sifra) meta.push(`ATC: ${item.atc_sifra}`);
+      if (meta.length) html += `<div class="lek-meta-txt">${meta.join(' · ')}</div>`;
+      div.innerHTML = html;
+      div.addEventListener('click', () => lekIzaberi(idx, item));
+      div.addEventListener('mouseenter', () => { lekSt[idx].ak=i; lekOsveziAk(idx,dd.querySelectorAll('.lek-item')); });
+      dd.appendChild(div);
+    });
+  }
+  dd.style.display = 'block';
+}
+function lekIzaberi(idx, item) {
+  document.getElementById(`lek-inp-${idx}`).value = item.naziv;
+  document.getElementById(`lek-naziv-${idx}`).value = item.naziv;
+  document.getElementById(`lek-inn-${idx}`).value = item.inn || '';
+  document.getElementById(`lek-atc-${idx}`).value = item.atc_sifra || '';
+  document.getElementById(`lek-oblik-${idx}`).value = item.farmaceutski_oblik || '';
+  document.getElementById(`lek-jacina-${idx}`).value = item.jacina || '';
+  const meta = document.getElementById(`lek-meta-${idx}`);
+  meta.querySelector('.lek-badge-naziv').textContent = item.naziv;
+  meta.style.display = 'block';
+  const clr = document.getElementById(`lek-inp-${idx}`).parentElement.querySelector('.lek-clr');
+  if (clr) clr.style.display = 'block';
+  lekZatvori(idx);
+  // Automatski otvori sledeći
+  const sled = idx + 1;
+  if (sled <= 5) {
+    const r = document.getElementById(`lred-${sled}`);
+    if (r && r.classList.contains('d-none')) { r.classList.remove('d-none'); if(!lekSt[sled]) lekInit(sled); }
+  }
+}
+// Ručni unos leka (Enter bez izbora iz liste)
+function lekRucniUnos(idx) {
+  const inp = document.getElementById(`lek-inp-${idx}`);
+  const naziv = inp.value.trim();
+  if (!naziv) return;
+  document.getElementById(`lek-naziv-${idx}`).value = naziv;
+  const meta = document.getElementById(`lek-meta-${idx}`);
+  meta.querySelector('.lek-badge-naziv').textContent = naziv;
+  meta.style.display = 'block';
+  lekZatvori(idx);
+}
+function lekOsveziAk(idx, items) {
+  items.forEach((el,i) => el.classList.toggle('ak', i===lekSt[idx].ak));
+  if (lekSt[idx].ak>=0) items[lekSt[idx].ak]?.scrollIntoView({block:'nearest'});
+}
+function lekZatvori(idx) { document.getElementById(`lek-dd-${idx}`).style.display='none'; lekSt[idx].ak=-1; }
+
+let lekVidljivih = 1;
+document.getElementById('dodaj-lek').addEventListener('click', () => {
+  if (lekVidljivih >= 5) return;
+  lekVidljivih++;
+  const r = document.getElementById(`lred-${lekVidljivih}`);
+  r.classList.remove('d-none');
+  if (!lekSt[lekVidljivih]) lekInit(lekVidljivih);
+  document.getElementById(`lek-inp-${lekVidljivih}`).focus();
+  if (lekVidljivih >= 5) document.getElementById('dodaj-lek').style.display = 'none';
+});
+document.querySelectorAll('.ukloni-lred').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const idx = parseInt(btn.dataset.idx);
+    document.getElementById(`lred-${idx}`).classList.add('d-none');
+    document.getElementById(`lek-inp-${idx}`).value = '';
+    document.getElementById(`lek-naziv-${idx}`).value = '';
+    document.getElementById(`lek-meta-${idx}`).style.display = 'none';
+    if (lekVidljivih === idx) lekVidljivih--;
+    document.getElementById('dodaj-lek').style.display = '';
+  });
+});
+
+// Submit — ručni unos za lekove koji nisu izabrani iz liste
+document.getElementById('forma-poseta').addEventListener('submit', () => {
+  for (let i = 1; i <= 5; i++) {
+    const inp = document.getElementById(`lek-inp-${i}`);
+    const val = document.getElementById(`lek-naziv-${i}`);
+    if (inp && inp.value.trim() && !val.value.trim()) {
+      val.value = inp.value.trim(); // prihvati ručni unos
+    }
+  }
+});
+
+lekInit(1);
+</script>
+{% endblock %}

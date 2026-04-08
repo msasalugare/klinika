@@ -1,0 +1,109 @@
+services:
+
+  mariadb:
+    image: mariadb:11
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_lozinka_2024
+      MYSQL_DATABASE: klinika
+      MYSQL_USER: klinika
+      MYSQL_PASSWORD: klinika123
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - klinika_net
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  orthanc:
+    image: orthancteam/orthanc:latest
+    restart: always
+    ports:
+      - "8042:8042"
+    volumes:
+      - orthanc_data:/var/lib/orthanc/db
+    environment:
+      ORTHANC__NAME: "Klinika DICOM"
+      ORTHANC__AUTHENTICATION_ENABLED: "true"
+      REGISTERED_USERS: |
+        {"admin": "orthanc123"}
+      STONE_WEB_VIEWER_PLUGIN_ENABLED: "true"
+      OHIF_PLUGIN_ENABLED: "true"
+      ORTHANC__DICOM_WEB__ENABLE: "true"
+    networks:
+      - klinika_net
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: always
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - klinika_net
+    environment:
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=1
+    # OPi5 Pro nema GPU - CPU only
+    # Ako koristis rkllama, zameni ovaj servis
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: always
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=n8n_admin_2024
+    networks:
+      - klinika_net
+
+  klinika:
+    build: .
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - uploads:/app/uploads
+    environment:
+      SECRET_KEY: zameni_sa_random_stringom_min32chars
+      DB_HOST: mariadb
+      DB_USER: klinika
+      DB_PASS: klinika123
+      DB_NAME: klinika
+      ORTHANC_URL: http://orthanc:8042
+      ORTHANC_USER: admin
+      ORTHANC_PASS: orthanc123
+      OLLAMA_URL: http://ollama:11434
+      N8N_URL: http://n8n:5678
+      UPLOAD_FOLDER: /app/uploads
+      # SMTP (opciono - za slanje emailova)
+      # SMTP_HOST: smtp.gmail.com
+      # SMTP_PORT: 587
+      # SMTP_USER: vas@email.com
+      # SMTP_PASS: app_password
+      # SMTP_FROM: vas@email.com
+    networks:
+      - klinika_net
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+volumes:
+  mariadb_data:
+  orthanc_data:
+  ollama_data:
+  n8n_data:
+  uploads:
+
+networks:
+  klinika_net:

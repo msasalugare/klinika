@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Klinika{% endblock %}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  :root { --primary: #1a5276; --accent: #2e86c1; }
+  body { background: #f4f7f9; font-family: 'Segoe UI', sans-serif; }
+  .sidebar {
+    width: 240px; min-height: 100vh; background: var(--primary);
+    position: fixed; top: 0; left: 0; z-index: 100;
+    display: flex; flex-direction: column;
+  }
+  .sidebar-brand {
+    padding: 1.2rem 1rem; color: #fff; font-weight: 700;
+    font-size: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1);
+    line-height: 1.3;
+  }
+  .sidebar-brand small { font-weight: 400; font-size: 0.75rem; opacity: 0.7; }
+  .sidebar .nav-link {
+    color: rgba(255,255,255,0.8); padding: .65rem 1.2rem;
+    border-radius: 6px; margin: 2px 8px; font-size: .9rem;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .sidebar .nav-link:hover, .sidebar .nav-link.active {
+    background: rgba(255,255,255,0.15); color: #fff;
+  }
+  .sidebar .nav-link i { font-size: 1rem; width: 20px; }
+  .sidebar-footer {
+    margin-top: auto; padding: 1rem;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .sidebar-footer .doktor-naziv { color: rgba(255,255,255,0.9); font-size:.85rem; font-weight:600; }
+  .sidebar-footer small { color: rgba(255,255,255,0.5); font-size:.75rem; }
+  .main-content { margin-left: 240px; padding: 2rem; min-height: 100vh; }
+  .page-header { margin-bottom: 1.5rem; }
+  .page-header h1 { font-size: 1.5rem; font-weight: 700; color: var(--primary); margin: 0; }
+  .card { border: none; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+  .card-header { background: #fff; border-bottom: 2px solid #eef2f7; font-weight: 600; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); }
+  .btn-primary:hover { background: var(--accent); border-color: var(--accent); }
+  .stat-card { border-left: 4px solid var(--accent); }
+  .stat-card .stat-num { font-size: 2rem; font-weight: 700; color: var(--primary); }
+  .badge-shared { background: #e8f4fd; color: var(--primary); font-weight: 500; font-size:.75rem; }
+  @media(max-width:768px) {
+    .sidebar { width: 100%; min-height: auto; position: relative; }
+    .main-content { margin-left: 0; padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <i class="bi bi-hospital me-1"></i> Klinika<br>
+    <small>Medicinski sistem</small>
+  </div>
+  <nav class="nav flex-column pt-2">
+    <a href="{{ url_for('dashboard') }}"
+       class="nav-link {% if request.endpoint=='dashboard' %}active{% endif %}">
+      <i class="bi bi-grid"></i> Početna
+    </a>
+    <a href="{{ url_for('pacijenti') }}"
+       class="nav-link {% if 'pacijent' in request.endpoint %}active{% endif %}">
+      <i class="bi bi-people"></i> Pacijenti
+    </a>
+    {% if session.get('doktor_uloga') in ('administracija','admin') %}
+    <a href="{{ url_for('zakazivanje') }}"
+       class="nav-link {% if request.endpoint=='zakazivanje' %}active{% endif %}">
+      <i class="bi bi-calendar-plus"></i> Zakazivanje
+    </a>
+    {% endif %}
+    {% if session.get('doktor_uloga') in ('doktor','admin') %}
+    <a href="{{ url_for('moji_termini') }}"
+       class="nav-link {% if request.endpoint=='moji_termini' %}active{% endif %}">
+      <i class="bi bi-calendar-check"></i> Moji termini
+    </a>
+    <a href="{{ url_for('moja_dostupnost') }}"
+       class="nav-link {% if request.endpoint=='moja_dostupnost' %}active{% endif %}">
+      <i class="bi bi-clock"></i> Moja dostupnost
+    </a>
+    {% endif %}
+    {% if session.get('doktor_uloga') == 'admin' %}
+    <div class="nav-link text-white-50 small mt-2 mb-1 ps-3">ADMIN</div>
+    <a href="{{ url_for('tipovi_pregleda') }}"
+       class="nav-link {% if request.endpoint=='tipovi_pregleda' %}active{% endif %}">
+      <i class="bi bi-list-check"></i> Tipovi pregleda
+    </a>
+    {% endif %}
+    <a href="{{ url_for('podesavanja') }}"
+       class="nav-link {% if request.endpoint=='podesavanja' %}active{% endif %}">
+      <i class="bi bi-gear"></i> Podešavanja
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="doktor-naziv">{{ session.get('doktor_ime', '') }}</div>
+    <small>Prijavljen</small><br>
+    <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light mt-2 w-100">
+      <i class="bi bi-box-arrow-right"></i> Odjava
+    </a>
+  </div>
+</div>
+
+<div class="main-content">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert">
+        {{ msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

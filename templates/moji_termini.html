@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Moji termini{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <h1><i class="bi bi-calendar-check me-2"></i>Moji termini</h1>
+</div>
+
+<!-- Navigacija po danima -->
+<div class="card mb-4">
+  <div class="card-body py-2">
+    <div class="d-flex gap-1 flex-wrap">
+      {% set dani = ['Pon','Uto','Sri','Čet','Pet','Sub','Ned'] %}
+      {% for d in sedmica %}
+      <a href="{{ url_for('moji_termini', datum=d) }}"
+         class="btn btn-sm {% if d == datum %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+        {{ dani[loop.index0] }}<br>
+        <small>{{ d[8:] }}.{{ d[5:7] }}.</small>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Termini za izabrani dan -->
+<div class="card">
+  <div class="card-header py-3">
+    <i class="bi bi-calendar-day me-2"></i>
+    {{ datum }}
+    <span class="badge bg-primary ms-2">{{ termini|length }}</span>
+  </div>
+  <div class="card-body p-0">
+    {% if termini %}
+    {% for t in termini %}
+    <div class="p-3 border-bottom d-flex gap-3 align-items-start">
+      <div class="text-center" style="min-width:60px">
+        <div class="fw-bold fs-5 text-primary">{{ t.vreme.strftime('%H:%M') if t.vreme else '' }}</div>
+        <div class="text-muted small">{{ t.trajanje_min }}min</div>
+      </div>
+      <div class="flex-grow-1">
+        <div class="fw-semibold">{{ t.pacijent_naziv }}</div>
+        {% if t.tip_naziv %}
+        <div class="text-muted small">{{ t.tip_naziv }}</div>
+        {% endif %}
+        {% if t.napomena %}
+        <div class="text-muted small fst-italic">{{ t.napomena }}</div>
+        {% endif %}
+        {% if t.cena %}
+        <div class="small text-success">{{ "%.0f"|format(t.cena) }} RSD</div>
+        {% endif %}
+      </div>
+      <div class="d-flex flex-column gap-1 align-items-end">
+        {% if t.status == 'zakazan' %}
+          <span class="badge bg-warning text-dark">zakazan</span>
+        {% elif t.status == 'potvrden' %}
+          <span class="badge bg-info">potvrđen</span>
+        {% elif t.status == 'realizovan' %}
+          <span class="badge bg-success">realizovan</span>
+        {% endif %}
+        <a href="{{ url_for('pacijent_detalji', pid=t.pacijent_id) }}"
+           class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-folder2-open me-1"></i>Karton
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-calendar-x fs-3 d-block mb-2"></i>
+      Nema zakazanih termina za {{ datum }}.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

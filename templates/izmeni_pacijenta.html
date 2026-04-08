@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}Izmena podataka — {{ pacijent.ime }} {{ pacijent.prezime }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-person-gear me-2"></i>Izmena podataka pacijenta</h1>
+  <p class="text-muted mb-0">
+    <a href="{{ url_for('pacijent_detalji', pid=pacijent.id) }}" class="text-muted">
+      <i class="bi bi-arrow-left me-1"></i>Nazad na karton
+    </a>
+  </p>
+</div>
+
+<div class="card" style="max-width:640px">
+  <div class="card-body">
+    <form method="post">
+      <div class="row g-3">
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Ime <span class="text-danger">*</span></label>
+          <input type="text" name="ime" class="form-control" value="{{ pacijent.ime }}" required autofocus>
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Prezime <span class="text-danger">*</span></label>
+          <input type="text" name="prezime" class="form-control" value="{{ pacijent.prezime }}" required>
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">JMBG</label>
+          <input type="text" name="jmbg" class="form-control font-monospace"
+                 maxlength="13" pattern="[0-9]{13}" placeholder="13 cifara"
+                 value="{{ pacijent.jmbg or '' }}">
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Datum rođenja</label>
+          <input type="date" name="datum_rodjenja" class="form-control"
+                 value="{{ pacijent.datum_rodjenja or '' }}">
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Pol</label>
+          <select name="pol" class="form-select">
+            <option value="">— izaberite —</option>
+            <option value="M" {% if pacijent.pol == 'M' %}selected{% endif %}>Muški</option>
+            <option value="Z" {% if pacijent.pol == 'Z' %}selected{% endif %}>Ženski</option>
+          </select>
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Telefon</label>
+          <input type="text" name="telefon" class="form-control" value="{{ pacijent.telefon or '' }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Adresa</label>
+          <input type="text" name="adresa" class="form-control" value="{{ pacijent.adresa or '' }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Email</label>
+          <input type="email" name="email" class="form-control" value="{{ pacijent.email or '' }}">
+        </div>
+        <div class="col-12 d-flex gap-2 pt-2">
+                  <!-- Medicinska istorija -->
+        <div class="col-12 mt-2">
+          <div class="card border-warning">
+            <div class="card-header py-2 bg-warning bg-opacity-10">
+              <i class="bi bi-heart-pulse me-2 text-warning"></i>
+              <span class="fw-semibold">Medicinska istorija</span>
+              <span class="text-muted small ms-2">— koristi se za AI analizu interakcija</span>
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-sm-4">
+                  <label class="form-label fw-semibold small">Krvna grupa</label>
+                  <select name="krvna_grupa" class="form-select form-select-sm">
+                    <option value="">— nepoznata —</option>
+                    {% for kg in ['A+','A-','B+','B-','AB+','AB-','O+','O-'] %}
+                    <option value="{{ kg }}" {% if pacijent is defined and pacijent.krvna_grupa == kg %}selected{% endif %}>{{ kg }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-sm-4 d-flex align-items-end">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="trudnoca"
+                           id="trudnoca" {% if pacijent is defined and pacijent.trudnoca %}checked{% endif %}>
+                    <label class="form-check-label fw-semibold small" for="trudnoca">
+                      Trudnoća <span class="text-danger">⚠️</span>
+                    </label>
+                  </div>
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold small">Alergije na lekove</label>
+                  <textarea name="alergije" class="form-control form-control-sm" rows="2"
+                            placeholder="npr. penicilin, sulfonamidi, aspirin...">{% if pacijent is defined %}{{ pacijent.alergije or '' }}{% endif %}</textarea>
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold small">Hronične bolesti</label>
+                  <textarea name="hronicne_bolesti" class="form-control form-control-sm" rows="2"
+                            placeholder="npr. dijabetes tip 2, hipertenzija, bubrežna insuficijencija...">{% if pacijent is defined %}{{ pacijent.hronicne_bolesti or '' }}{% endif %}</textarea>
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold small">Kontraindikacije</label>
+                  <textarea name="kontraindikacije" class="form-control form-control-sm" rows="2"
+                            placeholder="npr. ne koristiti NSAID, kontraindikovani beta blokatori...">{% if pacijent is defined %}{{ pacijent.kontraindikacije or '' }}{% endif %}</textarea>
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold small">Napomena / Anamneza</label>
+                  <textarea name="napomena_anamneza" class="form-control form-control-sm" rows="2"
+                            placeholder="Ostale relevantne medicinske napomene...">{% if pacijent is defined %}{{ pacijent.napomena_anamneza or '' }}{% endif %}</textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i>Sačuvaj izmene
+          </button>
+          <a href="{{ url_for('pacijent_detalji', pid=pacijent.id) }}"
+             class="btn btn-outline-secondary">Otkaži</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

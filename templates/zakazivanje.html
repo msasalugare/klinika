@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+{% block title %}Zakazivanje pregleda{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <h1><i class="bi bi-calendar-plus me-2"></i>Zakazivanje pregleda</h1>
+</div>
+
+<!-- Navigacija po danima -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      {% set dani = ['Pon','Uto','Sri','Čet','Pet','Sub','Ned'] %}
+      {% for d in sedmica %}
+      <a href="{{ url_for('zakazivanje', datum=d, doktor_id=doktor_filter or '') }}"
+         class="btn btn-sm {% if d == datum %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+        {{ dani[loop.index0] }}<br><small>{{ d[8:] }}.{{ d[5:7] }}.</small>
+      </a>
+      {% endfor %}
+      <div class="ms-auto">
+        <form method="get" class="d-flex gap-2">
+          <input type="hidden" name="datum" value="{{ datum }}">
+          <select name="doktor_id" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="">Svi doktori</option>
+            {% for d in svi_doktori %}
+            <option value="{{ d.id }}" {% if doktor_filter == d.id %}selected{% endif %}>
+              Dr. {{ d.ime }} {{ d.prezime }}
+            </option>
+            {% endfor %}
+          </select>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Leva kolona: Zakazivanje -->
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header py-3">
+        <i class="bi bi-plus-circle me-2"></i>Novi termin
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="akcija" value="zakazi">
+          <input type="hidden" name="datum" value="{{ datum }}">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Pacijent <span class="text-danger">*</span></label>
+            <select name="pacijent_id" class="form-select" required id="pacijent-select">
+              <option value="">— izaberite pacijenta —</option>
+              {% for p in svi_pacijenti %}
+              <option value="{{ p.id }}">{{ p.prezime }}, {{ p.ime }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Doktor <span class="text-danger">*</span></label>
+            <select name="doktor_id" class="form-select" required id="doktor-select"
+                    onchange="azurirajSlotove()">
+              <option value="">— izaberite doktora —</option>
+              {% for d in svi_doktori %}
+              <option value="{{ d.id }}" {% if doktor_filter == d.id %}selected{% endif %}>
+                Dr. {{ d.ime }} {{ d.prezime }}
+                {% if d.specijalnost %} — {{ d.specijalnost }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Slobodni termini</label>
+            <select name="vreme" class="form-select" required id="vreme-select">
+              <option value="">— prvo izaberite doktora —</option>
+            </select>
+            <div class="form-text">Ili unesite ručno:</div>
+            <input type="time" name="vreme_rucno" class="form-control form-control-sm mt-1"
+                   id="vreme-rucno" style="display:none">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Tip pregleda</label>
+            <select name="tip_pregleda_id" class="form-select">
+              <option value="">— bez tipa —</option>
+              {% for t in tipovi %}
+              <option value="{{ t.id }}">{{ t.naziv }}
+                ({{ t.trajanje_min }}min{% if t.cena %}, {{ "%.0f"|format(t.cena) }} RSD{% endif %})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Napomena</label>
+            <input type="text" name="napomena" class="form-control"
+                   placeholder="Razlog posete, posebne napomene...">
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-calendar-check me-1"></i>Zakaži termin
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desna kolona: Termini za dan -->
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header py-3">
+        <i class="bi bi-calendar-day me-2"></i>Termini za {{ datum }}
+        <span class="badge bg-primary ms-2">{{ termini|length }}</span>
+      </div>
+      <div class="card-body p-0">
+        {% if termini %}
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 small">
+            <thead class="table-light">
+              <tr>
+                <th>Vreme</th>
+                <th>Pacijent</th>
+                <th>Doktor</th>
+                <th>Tip</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in termini %}
+              <tr>
+                <td class="fw-bold text-primary">{{ t.vreme.strftime('%H:%M') if t.vreme else '' }}</td>
+                <td>{{ t.pacijent_naziv }}</td>
+                <td class="text-muted">Dr. {{ t.doktor_naziv }}</td>
+                <td class="text-muted">{{ t.tip_naziv or '—' }}</td>
+                <td>
+                  {% if t.status == 'zakazan' %}<span class="badge bg-warning text-dark">zakazan</span>
+                  {% elif t.status == 'potvrden' %}<span class="badge bg-info">potvrđen</span>
+                  {% elif t.status == 'realizovan' %}<span class="badge bg-success">realizovan</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                      <i class="bi bi-three-dots"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                      {% if t.status == 'zakazan' %}
+                      <li>
+                        <form method="post">
+                          <input type="hidden" name="akcija" value="potvrden">
+                          <input type="hidden" name="tid" value="{{ t.id }}">
+                          <input type="hidden" name="datum" value="{{ datum }}">
+                          <button class="dropdown-item text-info">
+                            <i class="bi bi-check-circle me-1"></i>Potvrdi
+                          </button>
+                        </form>
+                      </li>
+                      {% endif %}
+                      {% if t.status in ('zakazan', 'potvrden') %}
+                      <li>
+                        <form method="post">
+                          <input type="hidden" name="akcija" value="realizovan">
+                          <input type="hidden" name="tid" value="{{ t.id }}">
+                          <input type="hidden" name="datum" value="{{ datum }}">
+                          <button class="dropdown-item text-success">
+                            <i class="bi bi-check2-all me-1"></i>Realizovan
+                          </button>
+                        </form>
+                      </li>
+                      {% endif %}
+                      <li>
+                        <a href="{{ url_for('pacijent_detalji', pid=t.pacijent_id) }}"
+                           class="dropdown-item">
+                          <i class="bi bi-folder2-open me-1"></i>Karton
+                        </a>
+                      </li>
+                      <li><hr class="dropdown-divider"></li>
+                      <li>
+                        <form method="post" onsubmit="return confirm('Otkazati termin?')">
+                          <input type="hidden" name="akcija" value="otkazan">
+                          <input type="hidden" name="tid" value="{{ t.id }}">
+                          <input type="hidden" name="datum" value="{{ datum }}">
+                          <button class="dropdown-item text-danger">
+                            <i class="bi bi-x-circle me-1"></i>Otkaži
+                          </button>
+                        </form>
+                      </li>
+                    </ul>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-calendar-x fs-3 d-block mb-2"></i>
+          Nema termina za {{ datum }}.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slobodni slotovi po doktoru -->
+<script>
+const slobodni = {{ slobodni | tojson }};
+
+function azurirajSlotove() {
+  const doktorId = document.getElementById('doktor-select').value;
+  const select = document.getElementById('vreme-select');
+  const rucno = document.getElementById('vreme-rucno');
+  select.innerHTML = '';
+
+  if (!doktorId || !slobodni[doktorId]) {
+    select.innerHTML = '<option value="">— nema slobodnih termina —</option>';
+    rucno.style.display = 'block';
+    select.name = '';
+    document.querySelector('[name="vreme_rucno"]').name = 'vreme';
+    return;
+  }
+
+  const slotovi = slobodni[doktorId];
+  if (slotovi.length === 0) {
+    select.innerHTML = '<option value="">— doktor nije dostupan —</option>';
+    rucno.style.display = 'block';
+  } else {
+    select.innerHTML = '<option value="">— izaberite vreme —</option>';
+    slotovi.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      select.appendChild(opt);
+    });
+    // Opcija za ručni unos
+    const opt = document.createElement('option');
+    opt.value = '__rucno__'; opt.textContent = '✏ Unesi ručno...';
+    select.appendChild(opt);
+    rucno.style.display = 'none';
+  }
+}
+
+document.getElementById('vreme-select').addEventListener('change', function() {
+  const rucno = document.getElementById('vreme-rucno');
+  if (this.value === '__rucno__') {
+    rucno.style.display = 'block';
+    rucno.required = true;
+    this.name = '';
+    rucno.name = 'vreme';
+  } else {
+    rucno.style.display = 'none';
+    rucno.required = false;
+    this.name = 'vreme';
+    rucno.name = 'vreme_rucno';
+  }
+});
+
+// Inicijalizuj ako je doktor već izabran
+window.addEventListener('load', () => {
+  if (document.getElementById('doktor-select').value) {
+    azurirajSlotove();
+  }
+});
+</script>
+{% endblock %}

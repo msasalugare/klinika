@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+*.egg-info/
+
+# Flask
+instance/
+*.db
+*.sqlite3
+
+# Upload-ovi pacijenata (nikad u git!)
+uploads/
+static/uploads/
+media/
+
+# MariaDB data dir (ako je unutar projekta)
+data/
+mysql_data/
+mariadb_data/
+
+# Orthanc storage
+orthanc_data/
+OrthancStorage/
+orthanc_db/
+
+# Docker
+.dockerenv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Logovi
+*.log
+logs/
+
+# Secrets (VAŽNO!)
+*.pem
+*.key
+secrets.yml
+config.local.py

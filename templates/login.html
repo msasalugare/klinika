@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prijava — Klinika</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  body { background: linear-gradient(135deg, #1a5276 0%, #2e86c1 100%); min-height: 100vh;
+         display: flex; align-items: center; justify-content: center; }
+  .login-card { background: #fff; border-radius: 16px; padding: 2.5rem;
+                box-shadow: 0 10px 40px rgba(0,0,0,.2); width: 100%; max-width: 380px; }
+  .login-logo { text-align: center; margin-bottom: 1.5rem; }
+  .login-logo i { font-size: 3rem; color: #1a5276; }
+  .login-logo h4 { font-weight: 700; color: #1a5276; margin-top: .5rem; }
+  .btn-login { background: #1a5276; border: none; color: #fff; width: 100%;
+               padding: .75rem; border-radius: 8px; font-weight: 600; }
+  .btn-login:hover { background: #2e86c1; color: #fff; }
+</style>
+</head>
+<body>
+<div class="login-card">
+  <div class="login-logo">
+    <i class="bi bi-hospital"></i>
+    <h4>Medicinska Klinika</h4>
+    <p class="text-muted small">Sistem za upravljanje pacijentima</p>
+  </div>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="alert alert-{{ cat }} py-2 small">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+  <form method="post">
+    <div class="mb-3">
+      <label class="form-label fw-semibold">Korisničko ime</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-person"></i></span>
+        <input type="text" name="username" class="form-control" required autofocus>
+      </div>
+    </div>
+    <div class="mb-4">
+      <label class="form-label fw-semibold">Lozinka</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-lock"></i></span>
+        <input type="password" name="password" class="form-control" required>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-login">
+      <i class="bi bi-box-arrow-in-right me-1"></i> Prijava
+    </button>
+  </form>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

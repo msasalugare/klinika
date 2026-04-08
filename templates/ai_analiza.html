@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+{% block title %}AI Analiza — {{ pacijent.ime }} {{ pacijent.prezime }}{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1><i class="bi bi-robot me-2"></i>AI Analiza</h1>
+    <p class="text-muted mb-0">
+      <a href="{{ url_for('pacijent_detalji', pid=pacijent.id) }}" class="text-muted">
+        <i class="bi bi-arrow-left me-1"></i>{{ pacijent.prezime }}, {{ pacijent.ime }}
+      </a>
+      &nbsp;·&nbsp; Poseta: {{ poseta.datum }}
+    </p>
+  </div>
+  {% if analiza and analiza.status == 'gotova' %}
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('ai_analiza_pdf', poseta_id=poseta.id) }}"
+       class="btn btn-outline-secondary" target="_blank">
+      <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+    </a>
+    <form method="post" action="{{ url_for('ai_analiza_email', poseta_id=poseta.id) }}">
+      <button type="submit" class="btn btn-outline-primary"
+              onclick="return confirm('Poslati email svim doktorima koji su davali terapiju?')">
+        <i class="bi bi-envelope me-1"></i>Email doktorima
+      </button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+<div class="row g-4">
+  <!-- Leva kolona: kontekst -->
+  <div class="col-lg-4">
+
+    <div class="card mb-3">
+      <div class="card-header py-3"><i class="bi bi-clipboard-pulse me-2"></i>Kontekst analize</div>
+      <div class="card-body small">
+        <div class="mb-2 fw-semibold text-muted">DIJAGNOZE</div>
+        {% if dijagnoze %}
+          {% for d in dijagnoze %}
+          <div class="mb-1">
+            <span class="badge bg-primary me-1" style="font-size:.7rem">Dx</span>{{ d }}
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="text-muted">Nije navedena dijagnoza</div>
+        {% endif %}
+
+        {% if lek_posete %}
+        <div class="mt-3 mb-2 fw-semibold text-muted">LEKOVI PROPISANI NA POSETI</div>
+        {% for l in lek_posete %}
+        <div class="mb-1">
+          <span class="badge bg-success me-1" style="font-size:.7rem">Rx</span>
+          {{ l.naziv }}{% if l.doza %} <span class="text-muted">— {{ l.doza }}</span>{% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if aktivne_terapije %}
+        <div class="mt-3 mb-2 fw-semibold text-muted">AKTIVNE TERAPIJE</div>
+        {% for t in aktivne_terapije %}
+        <div class="mb-1">
+          <span class="badge bg-secondary me-1" style="font-size:.7rem">Th</span>
+          {{ t.naziv_leka }}{% if t.doza %} <span class="text-muted">— {{ t.doza }}</span>{% endif %}
+          <div class="text-muted" style="font-size:.75rem;margin-left:1.5rem">Dr. {{ t.doktor_naziv }}</div>
+        </div>
+        {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Pokreni / Pokreni ponovo -->
+    <div class="card">
+      <div class="card-body">
+        <form method="post" action="{{ url_for('pokreni_analizu', poseta_id=poseta.id) }}">
+          {% if analiza and analiza.status == 'gotova' %}
+          <button type="submit" class="btn btn-outline-secondary w-100"
+                  onclick="return confirm('Pokrenuti novu analizu?')">
+            <i class="bi bi-arrow-clockwise me-1"></i>Pokreni ponovo
+          </button>
+          {% elif analiza and analiza.status == 'na_cekanju' %}
+          <button type="submit" class="btn btn-outline-warning w-100" disabled>
+            <i class="bi bi-hourglass-split me-1"></i>Analiza u toku...
+          </button>
+          {% else %}
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-robot me-1"></i>Pokreni AI analizu
+          </button>
+          {% endif %}
+        </form>
+        <div class="text-muted small mt-2 text-center">
+          Model: qwen2.5:7b · Lokalni AI · ~1-2 min
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Desna kolona: rezultat -->
+  <div class="col-lg-8">
+
+    {% if analiza and analiza.status == 'na_cekanju' %}
+    <!-- Na čekanju -->
+    <div class="card border-0" style="background:#f0f7ff">
+      <div class="card-body text-center py-5">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <h5>AI analiza u toku...</h5>
+        <p class="text-muted">Model analizira dijagnoze i interakcije lekova.<br>Ovo može trajati 1-2 minuta.</p>
+        <div class="text-muted small" id="vreme-cekanja">0s</div>
+      </div>
+    </div>
+
+    {% elif analiza and analiza.status == 'gotova' %}
+    <!-- Rezultat -->
+
+    {% if analiza.upozorenja %}
+    {% set upozorenja = analiza.upozorenja | from_json %}
+    {% if upozorenja %}
+    <div class="alert border-0 mb-4" style="background:#fef9e7;border-left:5px solid #f39c12!important;border-left-style:solid!important">
+      <div class="fw-bold mb-2"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Upozorenja ({{ upozorenja|length }})</div>
+      {% for u in upozorenja %}
+      <div class="mb-1 small">&#9888; {{ u }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header py-3 d-flex justify-content-between">
+        <span><i class="bi bi-robot me-2"></i>Kompletna analiza</span>
+        <span class="text-muted small">{{ analiza.created_at.strftime('%d.%m.%Y %H:%M') if analiza.created_at else '' }}</span>
+      </div>
+      <div class="card-body" id="analiza-tekst">
+        {% set tekst = analiza.analiza_tekst or '' %}
+        {% for line in tekst.split('\n') %}
+          {% set l = line.strip() %}
+          {% if not l %}
+            <br>
+          {% elif l.startswith('## ') %}
+            <h6 class="text-primary fw-bold mt-3 mb-2 border-bottom pb-1">{{ l[3:] }}</h6>
+          {% elif l.startswith('UPOZORENJE:') %}
+            <div class="p-2 mb-2 rounded" style="background:#fef9e7;border-left:3px solid #f39c12">
+              <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+              {{ l.replace('UPOZORENJE:', '').strip() }}
+            </div>
+          {% elif l.startswith('- ') or l.startswith('* ') %}
+            <div class="mb-1 ps-3">&#8226; {{ l[2:] }}</div>
+          {% else %}
+            <p class="mb-1">{{ l }}</p>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="alert alert-light border mt-3 small text-muted text-center">
+      <i class="bi bi-info-circle me-1"></i>
+      Ovo je automatizovana savetodavna analiza AI sistema.
+      Ne zamenjuje klinički pregled niti stručnu procenu lekara.
+      <strong>Lekar donosi konačnu medicinsku odluku.</strong>
+    </div>
+
+    {% elif analiza and analiza.status == 'greska' %}
+    <div class="card border-danger">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-exclamation-circle text-danger fs-2 d-block mb-2"></i>
+        <h6>Greška pri analizi</h6>
+        <p class="text-muted small">AI model nije dostupan ili je došlo do greške.<br>
+          Provjerite da li je Ollama pokrenuta i da li je model preuzet.</p>
+        <form method="post" action="{{ url_for('pokreni_analizu', poseta_id=poseta.id) }}">
+          <button class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-arrow-clockwise me-1"></i>Pokušaj ponovo
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {% else %}
+    <!-- Analiza nije pokrenuta -->
+    <div class="card border-0" style="background:#f8f9fa">
+      <div class="card-body text-center py-5">
+        <i class="bi bi-robot fs-1 text-muted d-block mb-3"></i>
+        <h5 class="text-muted">Analiza nije pokrenuta</h5>
+        <p class="text-muted">Kliknite "Pokreni AI analizu" da biste pokrenuli analizu<br>
+          interakcija lekova i usklađenosti sa dijagnozama.</p>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<script>
+// Auto-refresh dok je na čekanju
+{% if analiza and analiza.status == 'na_cekanju' %}
+let sekunde = 0;
+const vremeTxt = document.getElementById('vreme-cekanja');
+setInterval(() => {
+  sekunde++;
+  if (vremeTxt) vremeTxt.textContent = sekunde + 's';
+}, 1000);
+
+// Provjeri status svakih 5 sekundi
+setInterval(async () => {
+  const r = await fetch('{{ url_for("ai_analiza_status", poseta_id=poseta.id) }}');
+  const d = await r.json();
+  if (d.status === 'gotova' || d.status === 'greska') {
+    window.location.reload();
+  }
+}, 5000);
+{% endif %}
+</script>
+{% endblock %}

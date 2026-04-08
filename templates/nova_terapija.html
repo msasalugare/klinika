@@ -1,0 +1,230 @@
+{% extends 'base.html' %}
+{% block title %}Nova terapija — {{ pacijent.ime }} {{ pacijent.prezime }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-capsule me-2"></i>Nova terapija</h1>
+  <p class="text-muted mb-0">
+    <a href="{{ url_for('terapije_pacijenta', pid=pacijent.id) }}" class="text-muted">
+      <i class="bi bi-arrow-left me-1"></i>{{ pacijent.prezime }}, {{ pacijent.ime }}
+    </a>
+  </p>
+</div>
+
+<div class="card" style="max-width:700px">
+  <div class="card-body">
+    <form method="post">
+      <div class="row g-3">
+
+        <!-- Lek autocomplete -->
+        <div class="col-12">
+          <label class="form-label fw-semibold">
+            Lek <span class="text-danger">*</span>
+            <span class="text-muted fw-normal small ms-1">— naziv ili INN</span>
+          </label>
+          <div class="position-relative">
+            <div class="input-group">
+              <input type="text" id="lek-pretraga" class="form-control"
+                     placeholder="Počnite da kucate naziv leka..." autocomplete="off" required>
+              <button type="button" class="btn btn-outline-secondary" id="lek-clear"
+                      style="display:none" title="Obriši">✕</button>
+            </div>
+            <input type="hidden" name="naziv_leka" id="naziv_leka_input">
+            <input type="hidden" name="inn" id="inn_input">
+            <input type="hidden" name="atc_sifra" id="atc_input">
+            <input type="hidden" name="farmaceutski_oblik" id="oblik_input">
+            <input type="hidden" name="jacina" id="jacina_input">
+            <div id="lek-dropdown" class="dropdown-menu w-100 shadow"
+                 style="display:none;max-height:300px;overflow-y:auto;position:absolute;z-index:1000;top:100%">
+            </div>
+          </div>
+          <!-- Izabrani lek info -->
+          <div id="lek-info" class="mt-2 p-2 rounded" style="display:none;background:#e8f4fd;border-left:4px solid #1a5276">
+            <div class="small">
+              <span class="fw-bold text-primary" id="lek-naziv-prikaz"></span><br>
+              <span class="text-muted" id="lek-detalji-prikaz"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Doza</label>
+          <input type="text" name="doza" class="form-control" placeholder="npr. 500mg, 1 tableta">
+        </div>
+
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Učestalost</label>
+          <input type="text" name="ucestalost" class="form-control" placeholder="npr. 2x1 dnevno, 3x dan">
+        </div>
+
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Način primene</label>
+          <select name="nacin_primene" class="form-select">
+            <option value="">— izaberite —</option>
+            <option>Oralno</option>
+            <option>Intravenozno (i.v.)</option>
+            <option>Intramuskularno (i.m.)</option>
+            <option>Subkutano (s.c.)</option>
+            <option>Inhalaciono</option>
+            <option>Topikalno</option>
+            <option>Rektalno</option>
+            <option>Transdermalno</option>
+            <option>Sublingvalno</option>
+            <option>Oftalmički</option>
+            <option>Otički</option>
+            <option>Nazalno</option>
+          </select>
+        </div>
+
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Datum početka <span class="text-danger">*</span></label>
+          <input type="date" name="datum_pocetka" class="form-control" value="{{ danas }}" required>
+        </div>
+
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Datum kraja</label>
+          <input type="date" name="datum_kraja" class="form-control">
+          <div class="form-text">Ostaviti prazno za hroničnu terapiju</div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Napomena</label>
+          <textarea name="napomena" class="form-control" rows="2"
+                    placeholder="Posebne instrukcije, razlog propisivanja..."></textarea>
+        </div>
+
+        <div class="col-12 d-flex gap-2 pt-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1"></i>Propiši terapiju
+          </button>
+          <a href="{{ url_for('terapije_pacijenta', pid=pacijent.id) }}"
+             class="btn btn-outline-secondary">Otkaži</a>
+        </div>
+
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.lek-item { padding:.5rem 1rem; cursor:pointer; border-bottom:1px solid #f0f0f0; font-size:.88rem; }
+.lek-item:hover, .lek-item.aktivan { background:#e8f4fd; }
+.lek-naziv { font-weight:700; color:#1a5276; }
+.lek-inn { color:#555; font-style:italic; margin-left:.4rem; }
+.lek-meta { color:#888; font-size:.8rem; }
+</style>
+
+<script>
+let timer = null, aktivan = -1, rezultati = [], izabran = false;
+const pretraga = document.getElementById('lek-pretraga');
+const dropdown = document.getElementById('lek-dropdown');
+const clearBtn = document.getElementById('lek-clear');
+const info     = document.getElementById('lek-info');
+
+function resetujIzbor() {
+  document.getElementById('naziv_leka_input').value = '';
+  document.getElementById('inn_input').value = '';
+  document.getElementById('atc_input').value = '';
+  document.getElementById('oblik_input').value = '';
+  document.getElementById('jacina_input').value = '';
+  info.style.display = 'none';
+  izabran = false;
+}
+
+pretraga.addEventListener('input', () => {
+  clearTimeout(timer);
+  resetujIzbor();
+  const q = pretraga.value.trim();
+  clearBtn.style.display = q ? 'block' : 'none';
+  if (q.length < 2) { zatvori(); return; }
+  timer = setTimeout(() => trazi(q), 300);
+});
+
+pretraga.addEventListener('keydown', e => {
+  const items = dropdown.querySelectorAll('.lek-item');
+  if (e.key === 'ArrowDown') { e.preventDefault(); aktivan = Math.min(aktivan+1, items.length-1); osveziAktivan(items); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); aktivan = Math.max(aktivan-1, 0); osveziAktivan(items); }
+  else if (e.key === 'Enter') { e.preventDefault(); if (aktivan >= 0 && rezultati[aktivan]) izaberi(rezultati[aktivan]); }
+  else if (e.key === 'Escape') zatvori();
+});
+
+clearBtn.addEventListener('click', () => {
+  pretraga.value = ''; resetujIzbor();
+  clearBtn.style.display = 'none'; zatvori(); pretraga.focus();
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#lek-pretraga') && !e.target.closest('#lek-dropdown')) zatvori();
+});
+
+// Validacija - lek mora biti izabran iz liste
+document.querySelector('form').addEventListener('submit', e => {
+  if (!document.getElementById('naziv_leka_input').value.trim()) {
+    // Ako nije izabran iz liste, koristimo šta je ukucano
+    document.getElementById('naziv_leka_input').value = pretraga.value.trim();
+  }
+});
+
+async function trazi(q) {
+  try {
+    const r = await fetch(`/lekovi/pretraga?q=${encodeURIComponent(q)}`);
+    rezultati = await r.json();
+    aktivan = -1;
+    prikaziDropdown();
+  } catch(e) { console.error(e); }
+}
+
+function prikaziDropdown() {
+  dropdown.innerHTML = '';
+  if (!rezultati.length) {
+    dropdown.innerHTML = '<div class="lek-item text-muted">Nema rezultata u ALIMS bazi — unesite ručno</div>';
+    dropdown.style.display = 'block'; return;
+  }
+  rezultati.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'lek-item';
+    let html = `<span class="lek-naziv">${item.naziv}</span>`;
+    if (item.inn) html += `<span class="lek-inn">(${item.inn})</span>`;
+    let meta = [];
+    if (item.farmaceutski_oblik) meta.push(item.farmaceutski_oblik);
+    if (item.jacina) meta.push(item.jacina);
+    if (item.atc_sifra) meta.push(`ATC: ${item.atc_sifra}`);
+    if (meta.length) html += `<div class="lek-meta">${meta.join(' · ')}</div>`;
+    div.innerHTML = html;
+    div.addEventListener('click', () => izaberi(item));
+    div.addEventListener('mouseenter', () => { aktivan = i; osveziAktivan(dropdown.querySelectorAll('.lek-item')); });
+    dropdown.appendChild(div);
+  });
+  dropdown.style.display = 'block';
+}
+
+function izaberi(item) {
+  pretraga.value = item.naziv;
+  document.getElementById('naziv_leka_input').value = item.naziv;
+  document.getElementById('inn_input').value = item.inn || '';
+  document.getElementById('atc_input').value = item.atc_sifra || '';
+  document.getElementById('oblik_input').value = item.farmaceutski_oblik || '';
+  document.getElementById('jacina_input').value = item.jacina || '';
+  // Prikaz info panela
+  document.getElementById('lek-naziv-prikaz').textContent = item.naziv;
+  let detalji = [];
+  if (item.inn) detalji.push(`INN: ${item.inn}`);
+  if (item.atc_sifra) detalji.push(`ATC: ${item.atc_sifra}`);
+  if (item.farmaceutski_oblik) detalji.push(item.farmaceutski_oblik);
+  if (item.jacina) detalji.push(item.jacina);
+  document.getElementById('lek-detalji-prikaz').textContent = detalji.join(' · ');
+  info.style.display = 'block';
+  clearBtn.style.display = 'block';
+  izabran = true;
+  zatvori();
+}
+
+function osveziAktivan(items) {
+  items.forEach((el, i) => el.classList.toggle('aktivan', i === aktivan));
+  if (aktivan >= 0) items[aktivan]?.scrollIntoView({ block:'nearest' });
+}
+
+function zatvori() {
+  dropdown.style.display = 'none'; aktivan = -1;
+}
+</script>
+{% endblock %}

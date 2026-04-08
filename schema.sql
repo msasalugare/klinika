@@ -1,0 +1,2 @@
+-- Dodaj ovde CREATE TABLE naredbe ručno
+-- ili exportuj iz: mysqldump -u root -p --no-data klinika > schema.sql

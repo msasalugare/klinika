@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+{% block title %}Podešavanja — Klinika{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-gear me-2"></i>Podešavanja</h1>
+</div>
+
+<div class="row g-4">
+  <!-- Podaci klinike -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header py-3">
+        <i class="bi bi-hospital me-2"></i>Podaci klinike (zaglavlje izveštaja)
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="akcija" value="klinika">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Naziv klinike</label>
+            <input type="text" name="naziv" class="form-control" value="{{ klinika.naziv or '' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Adresa</label>
+            <input type="text" name="adresa" class="form-control" value="{{ klinika.adresa or '' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Telefon</label>
+            <input type="text" name="telefon" class="form-control" value="{{ klinika.telefon or '' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Email</label>
+            <input type="email" name="email" class="form-control" value="{{ klinika.email or '' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">PIB</label>
+            <input type="text" name="pib" class="form-control" value="{{ klinika.pib or '' }}">
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i>Sačuvaj
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <!-- Moj profil -->
+    <div class="card mb-4">
+      <div class="card-header py-3">
+        <i class="bi bi-person-gear me-2"></i>Moj profil
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="akcija" value="profil">
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label fw-semibold">Ime</label>
+              <input type="text" name="ime" class="form-control" value="{{ doktor.ime }}" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Prezime</label>
+              <input type="text" name="prezime" class="form-control" value="{{ doktor.prezime }}" required>
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Specijalnost</label>
+            <input type="text" name="specijalnost" class="form-control"
+                   value="{{ doktor.specijalnost or '' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Broj licence</label>
+            <input type="text" name="licenca" class="form-control"
+                   value="{{ doktor.licenca or '' }}">
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-save me-1"></i>Sačuvaj profil
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Promena lozinke -->
+    <div class="card mb-4">
+      <div class="card-header py-3">
+        <i class="bi bi-lock me-2"></i>Promena lozinke
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="akcija" value="lozinka">
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Stara lozinka</label>
+            <input type="password" name="stara_lozinka" class="form-control" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Nova lozinka</label>
+            <input type="password" name="nova_lozinka" class="form-control" required minlength="6">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Potvrda nove lozinke</label>
+            <input type="password" name="potvrda_lozinka" class="form-control" required>
+          </div>
+          <button type="submit" class="btn btn-warning btn-sm">
+            <i class="bi bi-key me-1"></i>Promeni lozinku
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Doktori -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header py-3">
+        <i class="bi bi-people me-2"></i>Doktori u sistemu
+      </div>
+      <div class="card-body">
+        <div class="row g-4">
+          <!-- Lista doktora -->
+          <div class="col-lg-7">
+            <div class="table-responsive">
+              <table class="table table-hover small mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Ime i prezime</th>
+                    <th>Specijalnost</th>
+                    <th>Username</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for d in svi_doktori %}
+                  <tr>
+                    <td class="fw-semibold">{{ d.ime }} {{ d.prezime }}</td>
+                    <td>
+                      {% if d.uloga == 'admin' %}<span class="badge bg-danger">admin</span>
+                      {% elif d.uloga == 'administracija' %}<span class="badge bg-info">administracija</span>
+                      {% else %}<span class="badge bg-primary">doktor</span>{% endif %}
+                    </td>
+                    <td class="text-muted">{{ d.specijalnost or '—' }}</td>
+                    <td class="font-monospace">{{ d.username }}</td>
+                    <td>
+                      <form method="post"
+                            action="{{ url_for('obrisi_doktora', did=d.id) }}"
+                            onsubmit="return confirm('Obrisati Dr. {{ d.ime }} {{ d.prezime }}? Ova akcija se ne može poništiti.')">
+                        <button class="btn btn-sm btn-outline-danger py-0 px-2">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="4" class="text-muted text-center py-3">
+                    Nema drugih doktora u sistemu.
+                  </td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Dodaj doktora -->
+          <div class="col-lg-5">
+            <p class="fw-semibold small mb-2">Dodaj novog doktora:</p>
+            <form method="post">
+              <input type="hidden" name="akcija" value="novi_doktor">
+              <div class="row g-2">
+                <div class="col-6">
+                  <input type="text" name="d_ime" class="form-control form-control-sm"
+                         placeholder="Ime" required>
+                </div>
+                <div class="col-6">
+                  <input type="text" name="d_prezime" class="form-control form-control-sm"
+                         placeholder="Prezime" required>
+                </div>
+                <div class="col-12">
+                  <input type="text" name="d_specijalnost" class="form-control form-control-sm"
+                         placeholder="Specijalnost">
+                </div>
+                <div class="col-12">
+                  <input type="text" name="d_licenca" class="form-control form-control-sm"
+                         placeholder="Broj licence">
+                </div>
+                <div class="col-12">
+                <div class="col-12">
+                  <select name="d_uloga" class="form-select form-select-sm">
+                    <option value="doktor">Doktor</option>
+                    <option value="administracija">Administracija</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                  <input type="text" name="d_username" class="form-control form-control-sm"
+                         placeholder="Korisničko ime" required>
+                </div>
+                <div class="col-12">
+                  <input type="password" name="d_password" class="form-control form-control-sm"
+                         placeholder="Lozinka" required minlength="6">
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-primary btn-sm w-100">
+                    <i class="bi bi-person-plus me-1"></i>Dodaj doktora
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

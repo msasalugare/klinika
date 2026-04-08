@@ -1,0 +1,368 @@
+{% extends 'base.html' %}
+{% block title %}{{ pacijent.ime }} {{ pacijent.prezime }} — Klinika{% endblock %}
+{% block content %}
+
+{% if lekovi_za_potvrdu %}
+<div class="alert alert-info border-0 shadow-sm mb-4" style="border-left:5px solid #1a5276!important">
+  <div class="d-flex align-items-start gap-3">
+    <i class="bi bi-capsule-fill fs-4 text-primary mt-1"></i>
+    <div class="flex-grow-1">
+      <div class="fw-semibold mb-2">Dodati ste lekove u posetu — da li da se dodaju kao aktivne terapije?</div>
+      <form method="post" action="{{ url_for('dodaj_terapije_iz_posete', poseta_id=nova_poseta_id) }}">
+        <div class="row g-2">
+          {% for i, lek in lekovi_za_potvrdu | enumerate %}
+          <div class="col-12">
+            <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:rgba(26,82,118,0.05)">
+              <div class="flex-grow-1">
+                <span class="fw-semibold">{{ lek.naziv }}</span>
+                {% if lek.inn %}<span class="text-muted small ms-2">({{ lek.inn }})</span>{% endif %}
+                {% if lek.doza %}<span class="badge bg-secondary ms-2">{{ lek.doza }}</span>{% endif %}
+              </div>
+              <div class="d-flex gap-2">
+                <div class="form-check form-check-inline mb-0">
+                  <input class="form-check-input" type="radio" name="lek_{{ i }}" value="da"
+                         id="lek_da_{{ i }}" checked>
+                  <label class="form-check-label text-success fw-semibold" for="lek_da_{{ i }}">Da</label>
+                </div>
+                <div class="form-check form-check-inline mb-0">
+                  <input class="form-check-input" type="radio" name="lek_{{ i }}" value="ne"
+                         id="lek_ne_{{ i }}">
+                  <label class="form-check-label text-muted" for="lek_ne_{{ i }}">Ne</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="mt-3 d-flex gap-2">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check-lg me-1"></i>Potvrdi
+          </button>
+          <a href="{{ url_for('pacijent_detalji', pid=pacijent.id) }}"
+             class="btn btn-outline-secondary btn-sm">Preskoči</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div>
+    <h1><i class="bi bi-person-vcard me-2"></i>{{ pacijent.prezime }}, {{ pacijent.ime }}</h1>
+    <p class="text-muted mb-0">
+      {% if pacijent.datum_rodjenja %}{{ pacijent.datum_rodjenja }}{% endif %}
+      {% if pacijent.jmbg %}&nbsp;·&nbsp;<span class="font-monospace">{{ pacijent.jmbg }}</span>{% endif %}
+      {% if not je_vlasnik %}
+        &nbsp;·&nbsp;<span class="badge badge-shared">
+          <i class="bi bi-share me-1"></i>Dr. {{ vlasnik.ime }} {{ vlasnik.prezime }}
+        </span>
+      {% endif %}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    {% if je_vlasnik %}
+    <a href="{{ url_for('izmeni_pacijenta', pid=pacijent.id) }}" class="btn btn-outline-secondary">
+      <i class="bi bi-pencil me-1"></i>Izmeni podatke
+    </a>
+    {% endif %}
+    <a href="{{ url_for('terapije_pacijenta', pid=pacijent.id) }}" class="btn btn-outline-success">
+      <i class="bi bi-capsule me-1"></i>Terapije
+    </a>
+    <a href="{{ url_for('nova_poseta', pid=pacijent.id) }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i>Nova poseta
+    </a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Leva kolona -->
+  <div class="col-lg-4">
+
+    <!-- Lični podaci -->
+    <div class="card mb-3">
+      <div class="card-header py-3"><i class="bi bi-info-circle me-2"></i>Lični podaci</div>
+      <div class="card-body small">
+        <div class="mb-2"><span class="text-muted">Pol:</span>
+          <span class="ms-2">{{ {'M':'Muški','Z':'Ženski'}.get(pacijent.pol, '—') }}</span></div>
+        <div class="mb-2"><span class="text-muted">Adresa:</span>
+          <span class="ms-2">{{ pacijent.adresa or '—' }}</span></div>
+        <div class="mb-2"><span class="text-muted">Telefon:</span>
+          <span class="ms-2">{{ pacijent.telefon or '—' }}</span></div>
+        <div><span class="text-muted">Email:</span>
+          <span class="ms-2">{{ pacijent.email or '—' }}</span></div>
+      </div>
+    </div>
+
+    <!-- Medicinska istorija -->
+    {% if pacijent.alergije or pacijent.hronicne_bolesti or pacijent.kontraindikacije or pacijent.trudnoca or pacijent.krvna_grupa %}
+    <div class="card mb-3 border-warning">
+      <div class="card-header py-2 bg-warning bg-opacity-10">
+        <i class="bi bi-heart-pulse me-2 text-warning"></i>
+        <span class="fw-semibold small">Medicinska istorija</span>
+      </div>
+      <div class="card-body small">
+        {% if pacijent.trudnoca %}<div class="mb-2"><span class="badge bg-danger">TRUDNOĆA ⚠️</span></div>{% endif %}
+        {% if pacijent.krvna_grupa %}<div class="mb-1"><span class="text-muted">Krvna grupa:</span> <strong>{{ pacijent.krvna_grupa }}</strong></div>{% endif %}
+        {% if pacijent.alergije %}<div class="mb-1 text-danger"><i class="bi bi-exclamation-triangle me-1"></i><strong>Alergije:</strong> {{ pacijent.alergije }}</div>{% endif %}
+        {% if pacijent.hronicne_bolesti %}<div class="mb-1"><span class="text-muted">Hronične bolesti:</span> {{ pacijent.hronicne_bolesti }}</div>{% endif %}
+        {% if pacijent.kontraindikacije %}<div class="mb-1 text-warning"><i class="bi bi-slash-circle me-1"></i><strong>Kontraindikacije:</strong> {{ pacijent.kontraindikacije }}</div>{% endif %}
+        {% if pacijent.napomena_anamneza %}<div class="mb-1"><span class="text-muted">Napomena:</span> {{ pacijent.napomena_anamneza }}</div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+
+    <!-- Upload dokumenata -->
+    <div class="card mb-3">
+      <div class="card-header py-3">
+        <i class="bi bi-paperclip me-2"></i>Dodaj dokument
+        {% if orthanc_ok %}
+          <span class="badge bg-success ms-1" style="font-size:.65rem">DICOM ✓</span>
+        {% else %}
+          <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">DICOM offline</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('upload_dokument', pid=pacijent.id) }}"
+              enctype="multipart/form-data">
+          <div class="mb-2">
+            <input type="text" name="naziv" class="form-control form-control-sm"
+                   placeholder="Naziv (opciono)">
+          </div>
+          <div class="mb-2">
+            <input type="file" name="fajl" class="form-control form-control-sm" required
+                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.dcm">
+          </div>
+          <div class="text-muted mb-2" style="font-size:.75rem">PDF, slike, Word, Excel, DICOM</div>
+          <button type="submit" class="btn btn-primary btn-sm w-100">
+            <i class="bi bi-upload me-1"></i>Uploaduj
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Deljenje kartona -->
+    {% if je_vlasnik %}
+    <div class="card">
+      <div class="card-header py-3"><i class="bi bi-share me-2"></i>Deljenje kartona</div>
+      <div class="card-body">
+        {% if dozvole %}
+        <ul class="list-unstyled mb-3">
+          {% for d in dozvole %}
+          <li class="d-flex justify-content-between align-items-center mb-2">
+            <span class="small"><i class="bi bi-person-check me-1 text-success"></i>Dr. {{ d.doktor_naziv }}</span>
+            <form method="post" action="{{ url_for('ukloni_dozvolu', pid=pacijent.id, did=d.id) }}"
+                  onsubmit="return confirm('Ukloniti dozvolu?')">
+              <button class="btn btn-sm btn-outline-danger py-0 px-2">✕</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted small mb-3">Karton nije podeljen.</p>
+        {% endif %}
+        {% if svi_doktori %}
+        <form method="post" action="{{ url_for('dodaj_dozvolu', pid=pacijent.id) }}">
+          <div class="input-group input-group-sm">
+            <select name="doktor_id" class="form-select" required>
+              <option value="">— izaberi doktora —</option>
+              {% for d in svi_doktori %}
+              <option value="{{ d.id }}">Dr. {{ d.ime }} {{ d.prezime }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-outline-primary" type="submit"><i class="bi bi-plus"></i></button>
+          </div>
+        </form>
+        {% else %}
+        <p class="text-muted small mb-0">Nema drugih doktora.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Desna kolona -->
+  <div class="col-lg-8">
+
+    <!-- Dokumenti -->
+    {% if dokumenti %}
+    <div class="card mb-4">
+      <div class="card-header py-3">
+        <i class="bi bi-folder2-open me-2"></i>Dokumenti
+        <span class="badge bg-secondary ms-2">{{ dokumenti|length }}</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 small">
+            <thead class="table-light">
+              <tr><th>Naziv</th><th>Tip</th><th>Uploadovao</th><th>Datum</th><th></th></tr>
+            </thead>
+            <tbody>
+              {% for dok in dokumenti %}
+              <tr>
+                <td class="fw-semibold">{{ dok.naziv }}</td>
+                <td>
+                  {% if dok.tip == 'dcm' %}<span class="badge bg-primary">DICOM</span>
+                  {% elif dok.tip == 'pdf' %}<span class="badge bg-danger">PDF</span>
+                  {% elif dok.tip in ['jpg','jpeg','png'] %}<span class="badge bg-success">Slika</span>
+                  {% else %}<span class="badge bg-secondary">{{ dok.tip.upper() }}</span>{% endif %}
+                </td>
+                <td class="text-muted">Dr. {{ dok.doktor_naziv }}</td>
+                <td class="text-muted">
+                  {% if dok.created_at %}{{ dok.created_at.strftime('%d.%m.%Y') }}{% else %}—{% endif %}
+                </td>
+                <td>
+                  <div class="d-flex gap-1">
+                    {% if dok.tip == 'dcm' and dok.orthanc_id and orthanc_ok %}
+                      <a href="{{ orthanc_url }}/stone-webviewer/index.html?instance={{ dok.orthanc_id }}"
+                         target="_blank" class="btn btn-sm btn-outline-primary" title="DICOM viewer">
+                        <i class="bi bi-eye"></i>
+                      </a>
+                    {% else %}
+                      <a href="{{ url_for('preuzmi_dokument', did=dok.id) }}"
+                         class="btn btn-sm btn-outline-secondary" title="Preuzmi">
+                        <i class="bi bi-download"></i>
+                      </a>
+                    {% endif %}
+                    <form method="post" action="{{ url_for('obrisi_dokument', did=dok.id) }}"
+                          onsubmit="return confirm('Obrisati dokument?')">
+                      <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Aktivne terapije -->
+    {% if aktivne_terapije %}
+    <div class="card mb-4" style="border-left:4px solid #1e8449">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-capsule-fill text-success me-2"></i>Aktivne terapije</span>
+        <a href="{{ url_for('terapije_pacijenta', pid=pacijent.id) }}"
+           class="btn btn-sm btn-outline-success">Sve terapije</a>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <tbody>
+            {% for t in aktivne_terapije %}
+            <tr>
+              <td class="ps-3">
+                <div class="fw-semibold small">{{ t.naziv_leka }}</div>
+                {% if t.inn %}<div class="text-muted" style="font-size:.75rem">{{ t.inn }}</div>{% endif %}
+              </td>
+              <td class="small text-muted">
+                {% if t.doza %}{{ t.doza }}{% endif %}
+                {% if t.ucestalost %}<br>{{ t.ucestalost }}{% endif %}
+              </td>
+              <td class="small text-muted pe-3">Dr. {{ t.doktor_naziv }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Istorija poseta -->
+    <div class="card">
+      <div class="card-header py-3">
+        <i class="bi bi-journal-medical me-2"></i>Istorija poseta
+        <span class="badge bg-primary ms-2">{{ posete|length }}</span>
+      </div>
+      <div class="card-body p-0">
+        {% if posete %}
+        {% for poseta in posete %}
+        <div class="p-3 border-bottom">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="fw-semibold">{{ poseta.datum }}</span>
+              <span class="text-muted small ms-2">Dr. {{ poseta.doktor_naziv }}</span>
+            </div>
+            <div class="d-flex gap-1">
+              {% set ai = ai_status.get(poseta.id) %}
+              {% if ai and ai.status == 'gotova' %}
+                <a href="{{ url_for('ai_analiza', poseta_id=poseta.id) }}"
+                   class="btn btn-sm btn-warning" title="AI analiza dostupna">
+                  <i class="bi bi-robot me-1"></i>AI
+                  {% set upoz = ai.upozorenja | from_json %}
+                  {% if upoz %}<span class="badge bg-danger">{{ upoz|length }}</span>{% endif %}
+                </a>
+              {% elif ai and ai.status == 'na_cekanju' %}
+                <a href="{{ url_for('ai_analiza', poseta_id=poseta.id) }}"
+                   class="btn btn-sm btn-outline-warning" title="AI analiza u toku">
+                  <i class="bi bi-hourglass-split"></i>
+                </a>
+              {% else %}
+                <a href="{{ url_for('ai_analiza', poseta_id=poseta.id) }}"
+                   class="btn btn-sm btn-outline-secondary" title="AI analiza">
+                  <i class="bi bi-robot"></i>
+                </a>
+              {% endif %}
+              <a href="{{ url_for('izvestaj_pdf', poseta_id=poseta.id) }}"
+                 class="btn btn-sm btn-outline-secondary" target="_blank">
+                <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+              </a>
+            </div>
+          </div>
+
+          <!-- Dijagnoze - lista -->
+          {% set dijagnoze = poseta.dijagnoza|dijagnoze %}
+          {% if dijagnoze %}
+          <div class="mb-2">
+            <span class="text-muted small">
+              Dijagnoza{% if dijagnoze|length > 1 %}e{% endif %}:
+            </span>
+            {% if dijagnoze|length == 1 %}
+              <span class="ms-1 small">{{ dijagnoze[0] }}</span>
+            {% else %}
+              <ul class="mb-0 mt-1 ps-3">
+                {% for dg in dijagnoze %}
+                <li class="small">{{ dg }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if poseta.terapija %}
+          <div class="mb-1">
+            <span class="text-muted small">Terapija:</span>
+            <span class="ms-1 small">{{ poseta.terapija }}</span>
+          </div>
+          {% endif %}
+
+          {% if poseta.anamneza %}
+          <details class="mt-1">
+            <summary class="text-muted small" style="cursor:pointer">Anamneza</summary>
+            <p class="small mt-1 mb-0 text-muted">{{ poseta.anamneza }}</p>
+          </details>
+          {% endif %}
+
+          {% if poseta.napomena %}
+          <div class="mt-1">
+            <span class="badge bg-warning text-dark small">
+              <i class="bi bi-sticky me-1"></i>{{ poseta.napomena[:80] }}{% if poseta.napomena|length > 80 %}...{% endif %}
+            </span>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-journal-x fs-3 d-block mb-2"></i>
+          Još nema poseta za ovog pacijenta.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

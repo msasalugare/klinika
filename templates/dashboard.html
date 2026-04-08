@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}Početna — Klinika{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-grid me-2"></i>Dobrodošli, {{ session.get('doktor_ime') }}</h1>
+  <p class="text-muted mb-0">{{ now if now else '' }}</p>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card h-100 p-3">
+      <div class="stat-num">{{ moji_pacijenti }}</div>
+      <div class="text-muted small"><i class="bi bi-people me-1"></i>Moji pacijenti</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card h-100 p-3">
+      <div class="stat-num">{{ posete_danas }}</div>
+      <div class="text-muted small"><i class="bi bi-calendar-check me-1"></i>Posete danas</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card h-100 p-3">
+      <div class="stat-num">{{ podeljeni }}</div>
+      <div class="text-muted small"><i class="bi bi-share me-1"></i>Podeljeni pacijenti</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header py-3">
+    <i class="bi bi-clock-history me-2"></i>Poslednje posete
+  </div>
+  <div class="card-body p-0">
+    {% if poslednje_posete %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Pacijent</th>
+            <th>Datum</th>
+            <th>Dijagnoza</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in poslednje_posete %}
+          <tr>
+            <td class="fw-semibold">{{ p.pacijent_naziv }}</td>
+            <td>{{ p.datum }}</td>
+            <td class="text-muted">{{ (p.dijagnoza or '—')[:60] }}</td>
+            <td>
+              <a href="{{ url_for('pacijent_detalji', pid=p.pacijent_id) }}"
+                 class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-eye"></i>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-4">
+      <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+      Još nema poseta. <a href="{{ url_for('pacijenti') }}">Dodajte prvog pacijenta.</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

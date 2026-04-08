@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Tipovi pregleda — Admin{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <h1><i class="bi bi-list-check me-2"></i>Tipovi pregleda</h1>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header py-3">Aktivni tipovi pregleda</div>
+      <div class="card-body p-0">
+        {% if tipovi %}
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr><th>Naziv</th><th>Trajanje</th><th>Cena</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for t in tipovi %}
+            <tr>
+              <td class="fw-semibold">{{ t.naziv }}</td>
+              <td class="text-muted">{{ t.trajanje_min }} min</td>
+              <td>{% if t.cena %}{{ "%.0f"|format(t.cena) }} RSD{% else %}—{% endif %}</td>
+              <td>
+                <form method="post" onsubmit="return confirm('Deaktivirati?')">
+                  <input type="hidden" name="akcija" value="obrisi">
+                  <input type="hidden" name="tid" value="{{ t.id }}">
+                  <button class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4">Nema tipova pregleda.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header py-3">Dodaj tip pregleda</div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="akcija" value="dodaj">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Naziv <span class="text-danger">*</span></label>
+            <input type="text" name="naziv" class="form-control" required
+                   placeholder="npr. Internistički pregled">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Trajanje (minuta)</label>
+            <input type="number" name="trajanje_min" class="form-control"
+                   value="30" min="5" max="240">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Cena (RSD)</label>
+            <input type="number" name="cena" class="form-control"
+                   placeholder="Ostaviti prazno ako nije definisana">
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-plus-lg me-1"></i>Dodaj
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
