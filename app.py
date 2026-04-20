@@ -17,6 +17,49 @@ app.secret_key = os.environ.get('SECRET_KEY', 'promeniti_u_produkciji_2024')
 
 # Dodaj enumerate u Jinja2 environment
 app.jinja_env.globals['enumerate'] = enumerate
+app.jinja_env.filters['enumerate'] = lambda iterable, start=0: enumerate(iterable, start)
+
+def _td_format(val):
+    if val is None: return ''
+    if isinstance(val, str): return val
+    if hasattr(val, 'strftime'): return val.strftime('%H:%M')
+    try:
+        total = int(val.total_seconds())
+        return f"{total//3600:02d}:{(total%3600)//60:02d}"
+    except:
+        return str(val)
+
+import jinja2
+app.jinja_env.filters['time_format'] = _td_format
+
+class TimedeltaFix:
+    def __getattr__(self, name):
+        return lambda *a, **k: ''
+
+@app.template_filter('strftime_fix')
+def strftime_fix(val, fmt='%H:%M'):
+    return _td_format(val)
+
+def _td_format(val):
+    if val is None: return ''
+    if isinstance(val, str): return val
+    if hasattr(val, 'strftime'): return val.strftime('%H:%M')
+    try:
+        total = int(val.total_seconds())
+        return f"{total//3600:02d}:{(total%3600)//60:02d}"
+    except:
+        return str(val)
+
+import jinja2
+app.jinja_env.filters['time_format'] = _td_format
+
+class TimedeltaFix:
+    def __getattr__(self, name):
+        return lambda *a, **k: ''
+
+@app.template_filter('strftime_fix')
+def strftime_fix(val, fmt='%H:%M'):
+    return _td_format(val)
 
 @app.template_filter('from_json')
 def from_json_filter(s):
@@ -171,7 +214,12 @@ def init_db():
                     cur.execute('''CREATE TABLE IF NOT EXISTS mkb10 (
                         sifra VARCHAR(10) NOT NULL PRIMARY KEY,
                         naziv VARCHAR(500) NOT NULL,
-                        INDEX idx_naziv (naziv(100))
+                        naziv_lat VARCHAR(500) DEFAULT NULL,
+                        kategorija VARCHAR(10) DEFAULT NULL,
+                        poglavlje_naziv VARCHAR(200) DEFAULT NULL,
+                        INDEX idx_naziv (naziv(100)),
+                        INDEX idx_naziv_lat (naziv_lat(100)),
+                        INDEX idx_kategorija (kategorija)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
                     cur.execute("ALTER TABLE doktori MODIFY COLUMN uloga ENUM('admin','administracija','doktor') DEFAULT 'doktor'")
                     cur.execute('''CREATE TABLE IF NOT EXISTS ai_analize (
@@ -319,6 +367,58 @@ def _uvezi_mkb10(cur):
     batch = list(podaci.items())
     cur.executemany('INSERT IGNORE INTO mkb10 (sifra, naziv) VALUES (%s, %s)', batch)
     print(f'✅ MKB-10 uvežen: {len(batch)} šifara.')
+
+    # Uvezi latinske nazive i kategorije
+    lat_path = _os.path.join(_os.path.dirname(__file__), 'mkb10_latin.json')
+    if not _os.path.exists(lat_path):
+        print('⚠️  mkb10_latin.json nije pronađen.')
+        return
+    with open(lat_path, 'r', encoding='utf-8') as f:
+        latin = _json.load(f)
+
+    poglavlja = {
+        ('A','B'): ('I','Zarazne i parazitarne bolesti'),
+        ('C','D0','D1','D2','D3','D4'): ('II','Neoplazme'),
+        ('D5','D6','D7','D8'): ('III','Bolesti krvi i krvotvornih organa'),
+        ('E',): ('IV','Endokrine bolesti, bolesti ishrane i metabolizma'),
+        ('F',): ('V','Dusevni poremecaji i poremecaji ponasanja'),
+        ('G',): ('VI','Bolesti nervnog sistema'),
+        ('H0','H1','H2','H3','H4','H5'): ('VII','Bolesti oka i pripojaka oka'),
+        ('H6','H7','H8','H9'): ('VIII','Bolesti uha i mastoidnog nastavka'),
+        ('I',): ('IX','Bolesti sistema krvotoka'),
+        ('J',): ('X','Bolesti sistema organa za disanje'),
+        ('K',): ('XI','Bolesti organa za varenje'),
+        ('L',): ('XII','Bolesti koze i pottkoznog tkiva'),
+        ('M',): ('XIII','Bolesti misicno-kostanog sistema i vezivnog tkiva'),
+        ('N',): ('XIV','Bolesti mokracno-polnog sistema'),
+        ('O',): ('XV','Trudnoca, porodjaj i babinje'),
+        ('P',): ('XVI','Odredjena stanja iz perinatalnog perioda'),
+        ('Q',): ('XVII','Urodjene nakaznosti i hromozomski poremecaji'),
+        ('R',): ('XVIII','Simptomi, znaci i patoloski nalazi'),
+        ('S','T'): ('XIX','Povrede, trovanja i posledice spoljnih uzroka'),
+        ('V','W','X','Y'): ('XX','Spoljni uzroci morbiditeta i mortaliteta'),
+        ('Z',): ('XXI','Faktori koji uticu na zdravlje'),
+        ('U',): ('XXII','Sifre za posebne namene'),
+    }
+
+    def get_poglavlje(sifra):
+        c2 = sifra[0].upper()
+        d2 = sifra[:2].upper() if len(sifra)>=2 else c2
+        for prefixes,(br,naziv) in poglavlja.items():
+            for p in prefixes:
+                if d2.startswith(p) or c2==p:
+                    return br, naziv
+        return 'N/A', 'Nepoznato'
+
+    lat_batch = []
+    for sifra, data in latin.items():
+        kat, pog = get_poglavlje(sifra)
+        lat_batch.append((data['lat'][:500], kat, pog, sifra))
+
+    cur.executemany(
+        'UPDATE mkb10 SET naziv_lat=%s, kategorija=%s, poglavlje_naziv=%s WHERE sifra=%s',
+        lat_batch)
+    print(f'✅ MKB-10 latinski uvežen: {len(lat_batch)} šifara.')
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1094,7 +1194,18 @@ def moja_dostupnost():
                     db.commit(); flash('Nedostupnost uklonjena.', 'success')
                 return redirect(url_for('moja_dostupnost'))
             cur.execute('SELECT * FROM dostupnost WHERE doktor_id=%s ORDER BY dan', (doktor['id'],))
-            raspored = {r['dan']: r for r in cur.fetchall()}
+            def td_to_str(td):
+                if td is None: return ''
+                if hasattr(td, 'strftime'): return td.strftime('%H:%M')
+                total = int(td.total_seconds())
+                return f"{total//3600:02d}:{(total%3600)//60:02d}"
+            raw = cur.fetchall()
+            raspored = {}
+            for r in raw:
+                d = dict(r)
+                if 'od' in d: d['od'] = td_to_str(d['od'])
+                if 'do' in d: d['do'] = td_to_str(d['do'])
+                raspored[d['dan']] = d
             cur.execute(
                 'SELECT * FROM nedostupnost WHERE doktor_id=%s AND datum_do >= CURDATE() ORDER BY datum_od',
                 (doktor['id'],))
@@ -1220,14 +1331,40 @@ def zakazivanje():
                     trenutno = dt(trenutno.year,trenutno.month,trenutno.day,ukupno//60,ukupno%60)
                 slobodni[dr['id']] = slotovi
 
-            sedmica = [(d - timedelta(days=d.weekday()) + timedelta(days=i)).isoformat()
-                       for i in range(7)]
+            # 14 dana od danas u buducnost
+            danas = date.today()
+            sedmica = [(danas + timedelta(days=i)).isoformat() for i in range(14)]
+
+            # Nedostupni dani po doktoru
+            nedostupni_dani = set()
+            if doktor_filter:
+                for i in range(14):
+                    dan = danas + timedelta(days=i)
+                    cur.execute(
+                        'SELECT 1 FROM nedostupnost WHERE doktor_id=%s AND datum_od<=%s AND datum_do>=%s',
+                        (doktor_filter, dan.isoformat(), dan.isoformat()))
+                    if cur.fetchone():
+                        nedostupni_dani.add(dan.isoformat())
+
+            # Grid: sve vremenske oznake (zauzeti + slobodni)
+            all_slots_set = set()
+            for t in termini:
+                all_slots_set.add(str(t['vreme'])[:5])
+            for slots in slobodni.values():
+                all_slots_set.update(slots)
+            all_slots = sorted(all_slots_set)
+
+            # Mapa zakazanih termina: {doktor_id: {vreme: termin}}
+            termini_map = {}
+            for t in termini:
+                termini_map.setdefault(t['doktor_id'], {})[str(t['vreme'])[:5]] = t
 
     return render_template('zakazivanje.html', doktor=doktor, datum=datum,
                            svi_doktori=svi_doktori, tipovi=tipovi,
                            svi_pacijenti=svi_pacijenti, termini=termini,
                            slobodni=slobodni, doktor_filter=doktor_filter,
-                           sedmica=sedmica)
+                           sedmica=sedmica, nedostupni_dani=nedostupni_dani,
+                           all_slots=all_slots, termini_map=termini_map)
 
 # ── Dodaj terapije iz posete ─────────────────────────────────────────────────
 
@@ -1774,18 +1911,21 @@ def mkb10_pretraga():
         return jsonify([])
     with get_db() as db:
         with db.cursor() as cur:
-            # Traži po šifri ILI nazivu
             like = f'%{q}%'
             cur.execute('''
-                SELECT sifra, naziv FROM mkb10
-                WHERE sifra LIKE %s OR naziv LIKE %s
+                SELECT sifra, naziv, naziv_lat FROM mkb10
+                WHERE sifra LIKE %s OR naziv LIKE %s OR naziv_lat LIKE %s
                 ORDER BY
                     CASE WHEN sifra LIKE %s THEN 0 ELSE 1 END,
                     sifra
                 LIMIT 15
-            ''', (f'{q}%', like, f'{q}%'))
+            ''', (f'{q}%', like, like, f'{q}%'))
             rezultati = cur.fetchall()
-    return jsonify([{'sifra': r['sifra'], 'naziv': r['naziv']} for r in rezultati])
+    return jsonify([{
+        'sifra': r['sifra'],
+        'naziv': r['naziv'],
+        'naziv_lat': r['naziv_lat'] or ''
+    } for r in rezultati])
 
 
 if __name__ == '__main__':

@@ -31,12 +31,12 @@
                   <td class="fw-semibold align-middle">{{ dan }}</td>
                   <td>
                     <input type="time" name="od_{{ i }}" class="form-control form-control-sm"
-                           value="{{ r.od.strftime('%H:%M') if r and r.od else '' }}"
+                           value="{{ r.od if r and r.od else '' }}"
                            id="od_{{ i }}">
                   </td>
                   <td>
                     <input type="time" name="do_{{ i }}" class="form-control form-control-sm"
-                           value="{{ r.do.strftime('%H:%M') if r and r.do else '' }}"
+                           value="{{ r.do if r and r.do else '' }}"
                            id="do_{{ i }}">
                   </td>
                   <td class="text-center align-middle">

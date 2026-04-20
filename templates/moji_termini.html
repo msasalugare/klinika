@@ -33,7 +33,7 @@
     {% for t in termini %}
     <div class="p-3 border-bottom d-flex gap-3 align-items-start">
       <div class="text-center" style="min-width:60px">
-        <div class="fw-bold fs-5 text-primary">{{ t.vreme.strftime('%H:%M') if t.vreme else '' }}</div>
+        <div class="fw-bold fs-5 text-primary">{{ t.vreme|time_format }}</div>
         <div class="text-muted small">{{ t.trajanje_min }}min</div>
       </div>
       <div class="flex-grow-1">
