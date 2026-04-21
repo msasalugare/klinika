@@ -331,10 +331,18 @@
           </div>
           {% endif %}
 
-          {% if poseta.terapija %}
+          {% set lekovi_posete = poseta.terapija | terapije_lekovi %}
+          {% if lekovi_posete %}
           <div class="mb-1">
-            <span class="text-muted small">Terapija:</span>
-            <span class="ms-1 small">{{ poseta.terapija }}</span>
+            <span class="text-muted small d-block mb-1">Terapija:</span>
+            <div class="d-flex flex-wrap gap-1">
+              {% for lek in lekovi_posete %}
+              <span class="badge rounded-pill text-bg-light border small fw-normal" style="font-size:.78rem">
+                <i class="bi bi-capsule me-1 text-success"></i>{{ lek.naziv }}
+                {% if lek.doza %}<span class="text-muted ms-1">{{ lek.doza }}</span>{% endif %}
+              </span>
+              {% endfor %}
+            </div>
           </div>
           {% endif %}
 

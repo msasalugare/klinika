@@ -2,15 +2,34 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import pymysql, pymysql.cursors, os, requests, uuid
+
+# Učitaj .env fajl ako postoji
+_env_path = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith('#') and '=' in _line:
+                _k, _v = _line.split('=', 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
 from datetime import datetime
 from functools import wraps
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle, KeepTogether
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
+
+# Registruj DejaVu fontove sa Unicode podrškom (srpska latinična slova)
+_FONT_DIR = '/usr/share/fonts/truetype/dejavu'
+pdfmetrics.registerFont(TTFont('DejaVu',     f'{_FONT_DIR}/DejaVuSans.ttf'))
+pdfmetrics.registerFont(TTFont('DejaVu-Bold',f'{_FONT_DIR}/DejaVuSans-Bold.ttf'))
+pdfmetrics.registerFont(TTFont('DejaVuSerif',     f'{_FONT_DIR}/DejaVuSerif.ttf'))
+pdfmetrics.registerFont(TTFont('DejaVuSerif-Bold',f'{_FONT_DIR}/DejaVuSerif-Bold.ttf'))
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'promeniti_u_produkciji_2024')
@@ -70,6 +89,16 @@ def from_json_filter(s):
     except:
         return []
 
+@app.template_filter('terapije_lekovi')
+def terapije_lekovi_filter(s):
+    import json as _j
+    if not s: return []
+    try:
+        d = _j.loads(s)
+        return d if isinstance(d, list) else []
+    except:
+        return []
+
 @app.template_filter('dijagnoze')
 def dijagnoze_filter(s):
     import json as _j
@@ -93,9 +122,10 @@ ORTHANC_URL  = os.environ.get('ORTHANC_URL',  'http://orthanc:8042')
 ORTHANC_USER = os.environ.get('ORTHANC_USER', 'admin')
 ORTHANC_PASS = os.environ.get('ORTHANC_PASS', 'orthanc123')
 
-UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/app/uploads')
-N8N_URL     = os.environ.get('N8N_URL', 'http://n8n:5678')
-OLLAMA_URL  = os.environ.get('OLLAMA_URL', 'http://ollama:11434')
+UPLOAD_FOLDER     = os.environ.get('UPLOAD_FOLDER', '/app/uploads')
+N8N_URL           = os.environ.get('N8N_URL', 'http://n8n:5678')
+OLLAMA_URL        = os.environ.get('OLLAMA_URL', 'http://ollama:11434')
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 SMTP_HOST   = os.environ.get('SMTP_HOST', '')
 SMTP_PORT   = int(os.environ.get('SMTP_PORT', '587'))
 SMTP_USER   = os.environ.get('SMTP_USER', '')
@@ -988,73 +1018,209 @@ def izvestaj_pdf(poseta_id):
                 ORDER BY t.datum_pocetka DESC''', (poseta['pacijent_id'],))
             aktivne_terapije = cur.fetchall()
 
+    DARK      = colors.HexColor('#2c2c2c')
+    MID       = colors.HexColor('#5a6a7a')
+    SOFT_LINE = colors.HexColor('#c8d4dc')
+    SEC_BG    = colors.HexColor('#f4f6f8')
+    WARN_CLR  = colors.HexColor('#8a6000')
+
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm,
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=2*cm, bottomMargin=2.2*cm,
                             leftMargin=2.5*cm, rightMargin=2.5*cm)
     story = []
-    hs  = ParagraphStyle('h',  fontSize=16, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=4)
-    ss  = ParagraphStyle('s',  fontSize=9,  fontName='Helvetica', alignment=TA_CENTER, textColor=colors.grey, spaceAfter=2)
-    vs  = ParagraphStyle('v',  fontSize=10, fontName='Helvetica', spaceAfter=6)
-    ts  = ParagraphStyle('t',  fontSize=13, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceBefore=10, spaceAfter=10)
-    sec = ParagraphStyle('sc', fontSize=10, fontName='Helvetica-Bold', textColor=colors.HexColor('#1a5276'), spaceBefore=12, spaceAfter=4)
-    bs  = ParagraphStyle('b',  fontSize=10, fontName='Helvetica', leading=14, spaceAfter=8)
-    ps  = ParagraphStyle('p',  fontSize=8,  fontName='Helvetica', textColor=colors.grey)
 
+    F  = 'DejaVu'
+    FB = 'DejaVu-Bold'
+    FI = 'DejaVuSerif'       # serif italic za tekst
+
+    hs = ParagraphStyle('h',  fontSize=20, fontName=FB, alignment=TA_LEFT,
+                        spaceAfter=2, textColor=DARK)
+    ss = ParagraphStyle('s',  fontSize=9,  fontName=FI, alignment=TA_LEFT,
+                        textColor=MID, spaceAfter=2)
+    ts = ParagraphStyle('t',  fontSize=13, fontName=FB, alignment=TA_LEFT,
+                        spaceBefore=6, spaceAfter=6, textColor=DARK)
+    bs = ParagraphStyle('b',  fontSize=10, fontName=FI, leading=16,
+                        spaceAfter=6, textColor=DARK)
+    vs = ParagraphStyle('v',  fontSize=10, fontName=F,  leading=15, spaceAfter=4, textColor=DARK)
+    ps = ParagraphStyle('p',  fontSize=8,  fontName=FI, textColor=MID, alignment=TA_LEFT)
+
+    # ── Zaglavlje ──
     story.append(Paragraph(klinika['naziv'] or 'Medicinska Klinika', hs))
-    if klinika['adresa']: story.append(Paragraph(klinika['adresa'], ss))
-    k = []
-    if klinika['telefon']: k.append(f"Tel: {klinika['telefon']}")
-    if klinika['email']:   k.append(klinika['email'])
-    if k: story.append(Paragraph(' | '.join(k), ss))
-    story += [Spacer(1,.3*cm), HRFlowable(width="100%",thickness=2,color=colors.HexColor('#1a5276')),
-              Spacer(1,.3*cm), Paragraph('LEKARSKI IZVEŠTAJ', ts),
-              HRFlowable(width="100%",thickness=.5,color=colors.lightgrey), Spacer(1,.4*cm)]
+    if klinika['adresa']:
+        story.append(Paragraph(klinika['adresa'], ss))
+    kontakt = []
+    if klinika['telefon']: kontakt.append(f"Tel: {klinika['telefon']}")
+    if klinika['email']:   kontakt.append(klinika['email'])
+    if kontakt: story.append(Paragraph('  ·  '.join(kontakt), ss))
+    story.append(Spacer(1, .3*cm))
+    story.append(HRFlowable(width="100%", thickness=0.8, color=SOFT_LINE))
+    story.append(Spacer(1, .25*cm))
+    story.append(Paragraph('Lekarski izveštaj', ts))
+    story.append(HRFlowable(width="100%", thickness=0.4, color=SOFT_LINE))
+    story.append(Spacer(1, .45*cm))
 
-    story.append(Paragraph('PODACI O PACIJENTU', sec))
+    def _sec_hdr(tekst):
+        tbl = Table([[Paragraph(tekst, ParagraphStyle('sh', fontSize=8, fontName=FB,
+                     textColor=MID, spaceAfter=0))]], colWidths=[doc.width])
+        tbl.setStyle(TableStyle([
+            ('BACKGROUND',    (0,0),(-1,-1), SEC_BG),
+            ('TOPPADDING',    (0,0),(-1,-1), 5),
+            ('BOTTOMPADDING', (0,0),(-1,-1), 5),
+            ('LEFTPADDING',   (0,0),(-1,-1), 4),
+            ('RIGHTPADDING',  (0,0),(-1,-1), 4),
+            ('LINEBELOW',     (0,0),(-1,-1), 0.6, SOFT_LINE),
+        ]))
+        return tbl
+
+    import json as _json
+
+    W = doc.width  # tačna širina sadržaja (~16cm)
+
+    story.append(_sec_hdr('PODACI O PACIJENTU'))
+    story.append(Spacer(1, .2*cm))
+
     pol = {'M':'Muški','Z':'Ženski'}.get(pacijent['pol'], pacijent['pol'] or '—')
     dr  = str(pacijent['datum_rodjenja']) if pacijent['datum_rodjenja'] else '—'
-    t = Table([['Ime i prezime:', f"{pacijent['ime']} {pacijent['prezime']}", 'Datum rodjenja:', dr],
-               ['JMBG:', pacijent['jmbg'] or '—', 'Pol:', pol],
-               ['Adresa:', pacijent['adresa'] or '—', 'Telefon:', pacijent['telefon'] or '—']],
-              colWidths=[3.5*cm,6*cm,3.5*cm,4*cm])
-    t.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Helvetica'),
-                            ('FONTNAME',(0,0),(0,-1),'Helvetica-Bold'),
-                            ('FONTNAME',(2,0),(2,-1),'Helvetica-Bold'),
-                            ('FONTSIZE',(0,0),(-1,-1),9),
-                            ('TEXTCOLOR',(0,0),(0,-1),colors.HexColor('#555')),
-                            ('TEXTCOLOR',(2,0),(2,-1),colors.HexColor('#555')),
-                            ('BOTTOMPADDING',(0,0),(-1,-1),5),
-                            ('TOPPADDING',(0,0),(-1,-1),3)]))
-    story += [t, Spacer(1,.3*cm), Paragraph('PODACI O POSETI', sec),
-              Paragraph(f"<b>Datum posete:</b> {poseta['datum']}", vs),
-              Paragraph(f"<b>Lekar:</b> Dr. {dp['ime']} {dp['prezime']}"
-                        + (f", {dp['specijalnost']}" if dp['specijalnost'] else ''), vs)]
-    for label, field in [('Anamneza','anamneza'),('Terapija','terapija'),('Napomena','napomena')]:
-        if poseta[field]:
-            story += [Paragraph(f'{label}:', sec),
-                      Paragraph(poseta[field].replace('\n','<br/>'), bs)]
-    # Dijagnoze - poseban prikaz
+
+    def lbl(t): return Paragraph(t, ParagraphStyle('lbl', fontSize=8, fontName=FB, textColor=MID))
+    def val(t): return Paragraph(str(t), ParagraphStyle('val', fontSize=9, fontName=F, textColor=DARK))
+
+    pac_tbl = Table([
+        [lbl('Ime i prezime:'), val(f"{pacijent['ime']} {pacijent['prezime']}"),
+         lbl('Datum rođenja:'), val(dr)],
+        [lbl('JMBG:'),          val(pacijent['jmbg'] or '—'),
+         lbl('Pol:'),           val(pol)],
+        [lbl('Adresa:'),        val(pacijent['adresa'] or '—'),
+         lbl('Telefon:'),       val(pacijent['telefon'] or '—')],
+    ], colWidths=[2.8*cm, W/2-2.8*cm, 2.8*cm, W/2-2.8*cm])
+    pac_tbl.setStyle(TableStyle([
+        ('TOPPADDING',    (0,0),(-1,-1), 4),
+        ('BOTTOMPADDING', (0,0),(-1,-1), 4),
+        ('LINEBELOW',     (0,0),(-1,-2), 0.3, SOFT_LINE),
+    ]))
+    story += [pac_tbl, Spacer(1, .4*cm)]
+
+    # ── Poseta ──
+    story.append(_sec_hdr('PODACI O POSETI'))
+    story.append(Spacer(1, .2*cm))
+    story.append(Paragraph(f"<b>Datum posete:</b> {poseta['datum']}", vs))
+    spec = f", {dp['specijalnost']}" if dp.get('specijalnost') else ''
+    story.append(Paragraph(f"<b>Lekar:</b> Dr. {dp['ime']} {dp['prezime']}{spec}", vs))
+    story.append(Spacer(1, .3*cm))
+
+    # ── Anamneza ──
+    if poseta.get('anamneza'):
+        story.append(_sec_hdr('ANAMNEZA'))
+        story.append(Spacer(1, .2*cm))
+        story.append(Paragraph(poseta['anamneza'].replace('\n', '<br/>'), bs))
+        story.append(Spacer(1, .2*cm))
+
+    # ── Dijagnoza ──
     dijagnoze_pdf = parsiraj_dijagnoze(poseta['dijagnoza'])
     if dijagnoze_pdf:
-        story.append(Paragraph('Dijagnoza:', sec))
+        story.append(_sec_hdr('DIJAGNOZA'))
+        story.append(Spacer(1, .2*cm))
         for idx, dg in enumerate(dijagnoze_pdf, 1):
-            prefix = f'{idx}. ' if len(dijagnoze_pdf) > 1 else ''
-            story.append(Paragraph(f'{prefix}{dg}', bs))
-    # Aktivne terapije u PDF-u
+            prefix = f'{idx}.  ' if len(dijagnoze_pdf) > 1 else '•  '
+            story.append(Paragraph(prefix + dg,
+                ParagraphStyle('dg', fontSize=10, fontName=F, leading=15,
+                               leftIndent=8, spaceAfter=3)))
+        story.append(Spacer(1, .2*cm))
+
+    # ── Terapija sa posete (JSON lista lekova) ──
+    try:
+        lekovi_posete = _json.loads(poseta['terapija'] or '[]')
+        if not isinstance(lekovi_posete, list):
+            lekovi_posete = []
+    except Exception:
+        lekovi_posete = []
+
+    if lekovi_posete:
+        story.append(_sec_hdr('PROPISANA TERAPIJA'))
+        story.append(Spacer(1, .15*cm))
+        # Zaglavlje tabele
+        th     = ParagraphStyle('th',  fontSize=8,  fontName=FB, textColor=MID)
+        td     = ParagraphStyle('td',  fontSize=9,  fontName=F,  leading=13, textColor=DARK)
+        td_it  = ParagraphStyle('tdi', fontSize=8,  fontName=FI, leading=12, textColor=MID)
+        hdr_row = [
+            Paragraph('Naziv leka', th),
+            Paragraph('INN / ATC', th),
+            Paragraph('Doza / doziranje', th),
+        ]
+        rows = [hdr_row]
+        for l in lekovi_posete:
+            naziv = l.get('naziv') or '—'
+            inn_atc_parts = []
+            if l.get('inn'): inn_atc_parts.append(l['inn'])
+            if l.get('atc'): inn_atc_parts.append(l['atc'])
+            inn_atc = '  ·  '.join(inn_atc_parts) if inn_atc_parts else '—'
+            doza_parts = []
+            if l.get('doza'):   doza_parts.append(l['doza'])
+            if l.get('jacina'): doza_parts.append(l['jacina'])
+            if l.get('oblik'):  doza_parts.append(l['oblik'])
+            doza = '  ·  '.join(doza_parts) if doza_parts else '—'
+            rows.append([
+                Paragraph(naziv, td),
+                Paragraph(inn_atc, td_it),
+                Paragraph(doza, td),
+            ])
+        lek_tbl = Table(rows, colWidths=[W*0.42, W*0.28, W*0.30])
+        lek_tbl.setStyle(TableStyle([
+            ('BACKGROUND',    (0,0), (-1,0),  SEC_BG),
+            ('FONTNAME',      (0,0), (-1,0),  FB),
+            ('FONTSIZE',      (0,0), (-1,0),  8),
+            ('TOPPADDING',    (0,0), (-1,-1), 6),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+            ('LEFTPADDING',   (0,0), (-1,-1), 6),
+            ('RIGHTPADDING',  (0,0), (-1,-1), 6),
+            ('ROWBACKGROUNDS',(0,1), (-1,-1), [colors.white, colors.HexColor('#f8f9fa')]),
+            ('LINEBELOW',     (0,0), (-1,-1), 0.3, SOFT_LINE),
+            ('LINEBELOW',     (0,0), (-1,0),  0.8, SOFT_LINE),
+        ]))
+        story += [lek_tbl, Spacer(1, .25*cm)]
+
+    # ── Napomena ──
+    if poseta.get('napomena'):
+        story.append(_sec_hdr('NAPOMENA'))
+        story.append(Spacer(1, .2*cm))
+        story.append(Paragraph(poseta['napomena'].replace('\n', '<br/>'), bs))
+        story.append(Spacer(1, .2*cm))
+
+    # ── Aktivne terapije ──
     if aktivne_terapije:
-        story.append(Paragraph('Aktivne terapije:', sec))
-        for t in aktivne_terapije:
-            delovi = [t['naziv_leka']]
-            if t['inn']: delovi.append(f"({t['inn']})")
-            if t['doza']: delovi.append(f"— {t['doza']}")
-            if t['ucestalost']: delovi.append(t['ucestalost'])
-            if t['nacin_primene']: delovi.append(f"({t['nacin_primene']})")
-            story.append(Paragraph('• ' + ' '.join(delovi), bs))
-    story += [Spacer(1,1.5*cm), HRFlowable(width="100%",thickness=.5,color=colors.lightgrey),
-              Spacer(1,.3*cm),
-              Paragraph(f"Izveštaj generisao: Dr. {dp['ime']} {dp['prezime']}"
-                        + (f" | Licenca: {dp['licenca']}" if dp['licenca'] else '')
-                        + f" | {datetime.now().strftime('%d.%m.%Y %H:%M')}", ps)]
+        story.append(Spacer(1, .15*cm))
+        story.append(_sec_hdr('AKTIVNE TERAPIJE (CELOKUPNA)'))
+        story.append(Spacer(1, .15*cm))
+        for idx, t in enumerate(aktivne_terapije):
+            bg = colors.white if idx % 2 == 0 else colors.HexColor('#f7fafd')
+            naziv = t['naziv_leka']
+            detalji_parts = []
+            if t.get('inn'):          detalji_parts.append(f"INN: {t['inn']}")
+            if t.get('doza'):         detalji_parts.append(f"Doza: {t['doza']}")
+            if t.get('ucestalost'):   detalji_parts.append(t['ucestalost'])
+            if t.get('nacin_primene'):detalji_parts.append(t['nacin_primene'])
+            detalji = '  ·  '.join(detalji_parts) if detalji_parts else ''
+            row_tbl = Table([[
+                Paragraph(naziv, ParagraphStyle('tr',  fontSize=10, fontName=FB, leading=14, textColor=DARK)),
+                Paragraph(detalji, ParagraphStyle('trd', fontSize=8, fontName=FI, textColor=MID, leading=13)),
+            ]], colWidths=[8*cm, doc.width - 8*cm])
+            row_tbl.setStyle(TableStyle([
+                ('BACKGROUND',    (0,0),(-1,-1), bg),
+                ('TOPPADDING',    (0,0),(-1,-1), 5),
+                ('BOTTOMPADDING', (0,0),(-1,-1), 5),
+                ('LEFTPADDING',   (0,0),(-1,-1), 6),
+                ('VALIGN',        (0,0),(-1,-1), 'MIDDLE'),
+                ('LINEBELOW',     (0,0),(-1,-1), 0.3, SOFT_LINE),
+            ]))
+            story.append(row_tbl)
+
+    # ── Footer ──
+    story += [Spacer(1, 1.2*cm),
+              HRFlowable(width="100%", thickness=0.4, color=SOFT_LINE),
+              Spacer(1, .25*cm),
+              Paragraph(f"Izveštaj generisao: <i>Dr. {dp['ime']} {dp['prezime']}</i>"
+                        + (f"  ·  Licenca: {dp['licenca']}" if dp.get('licenca') else '')
+                        + f"  ·  {datetime.now().strftime('%d.%m.%Y %H:%M')}", ps)]
     doc.build(story)
     buf.seek(0)
     fn = f"izvestaj_{pacijent['prezime']}_{pacijent['ime']}_{poseta['datum']}.pdf"
@@ -1452,6 +1618,7 @@ def pokreni_ai_analizu(poseta_id, doktor_id):
                             (poseta_id, pid, doktor_id))
                     db.commit()
 
+            # Anonimizacija — samo medicinski relevantni podaci, bez PII
             pol_txt = "muskog" if poseta["pol"] == "M" else "zenskog"
             dob = ""
             if poseta["datum_rodjenja"]:
@@ -1460,7 +1627,6 @@ def pokreni_ai_analizu(poseta_id, doktor_id):
                 if hasattr(dr, "year"):
                     dob = f"{date.today().year - dr.year} godina"
 
-            # Formatiraj lekove sa ATC + INN iz ALIMS baze
             def fmt_lek_posete(l):
                 parts = [f"- {l.get('naziv','')}"]
                 if l.get('inn'): parts.append(f"(INN: {l['inn']})")
@@ -1474,15 +1640,12 @@ def pokreni_ai_analizu(poseta_id, doktor_id):
                 if t['atc_sifra']: parts.append(f"[ATC: {t['atc_sifra']}]")
                 if t['doza']: parts.append(f"— {t['doza']}")
                 if t['ucestalost']: parts.append(t['ucestalost'])
-                parts.append(f"— Dr. {t['doktor_naziv']}")
                 return " ".join(parts)
 
             dijagnoze_txt = chr(10).join(f"- {d}" for d in dijagnoze) if dijagnoze else "- Nije navedena dijagnoza"
             lekovi_txt = chr(10).join(fmt_lek_posete(l) for l in lek_posete) if lek_posete else "- Nisu propisani lekovi na ovoj poseti"
             terapije_txt = chr(10).join(fmt_terapija(t) for t in terapije) if terapije else "- Nema aktivnih terapija"
 
-
-            # Medicinska istorija pacijenta za AI
             med_istorija = []
             if pacijent_info:
                 if pacijent_info.get('krvna_grupa'): med_istorija.append(f"Krvna grupa: {pacijent_info['krvna_grupa']}")
@@ -1493,16 +1656,15 @@ def pokreni_ai_analizu(poseta_id, doktor_id):
                 if pacijent_info.get('napomena_anamneza'): med_istorija.append(f"Napomena: {pacijent_info['napomena_anamneza']}")
             med_istorija_txt = chr(10).join(f"- {x}" for x in med_istorija) if med_istorija else "- Nije unesena"
 
+            # Anonimni prompt — bez imena, prezimena, JMBG, adrese
             prompt = f"""Ti si medicinski ekspert sistem specijalizovan za farmakologiju i klinicku medicinu.
 Koristis ATC (Anatomsko-Terapijsko-Hemijska) klasifikaciju i INN (International Nonproprietary Names)
 za preciznu identifikaciju lekova i analizu interakcija na nivou aktivnih supstanci.
 Odgovaraj ISKLJUCIVO na srpskom jeziku. Budi koncizan, precizan i strukturiran.
 
-PACIJENT: {poseta["ime"]} {poseta["prezime"]}, {pol_txt} pola{", " + dob if dob else ""}
-DATUM POSETE: {poseta["datum"]}
-LEKAR: {poseta["doktor_naziv"]}
+PACIJENT: {pol_txt} pol{", " + dob if dob else ""}
 
-MEDICINSKA ISTORIJA PACIJENTA:
+MEDICINSKA ISTORIJA:
 {med_istorija_txt}
 
 DIJAGNOZE (MKB-10):
@@ -1511,54 +1673,57 @@ DIJAGNOZE (MKB-10):
 LEKOVI PROPISANI NA OVOJ POSETI:
 {lekovi_txt}
 
-AKTIVNE TERAPIJE PACIJENTA (ranije propisane):
+AKTIVNE TERAPIJE (ranije propisane):
 {terapije_txt}
 
 NAPOMENA: INN nazivi i ATC sifre su navedeni radi precizne identifikacije aktivnih supstanci
 bez obzira na lokalni naziv brenda. Analiziraj interakcije na nivou aktivnih supstanci.
-Obavezno uzmi u obzir medicinsku istoriju pacijenta — alergije, hronicne bolesti, trudnocu i kontraindikacije.
+Obavezno uzmi u obzir medicinsku istoriju — alergije, hronicne bolesti, trudnocu i kontraindikacije.
 
-Analiziraj i odgovori u ovom TACNOM formatu:
+Analiziraj SAZETNO i odgovori u ovom TACNOM formatu (svaka sekcija max 3-4 recenice):
 
 ## UPOZORENJA
-[Svako upozorenje pocinje sa "UPOZORENJE:" na posebnoj liniji.
-Navedi samo klinicki relevantna upozorenja sa obrazlozenjem.
-Ako nema upozorenja, napisi tacno: "Nisu detektovana upozorenja."]
+[Samo klinicki znacajna upozorenja, jedno po liniji sa "UPOZORENJE:".
+Ako nema upozorenja: "Nisu detektovana upozorenja."]
 
-## INTERAKCIJE IZMEDJU LEKOVA
-[Za svaki par lekova koji imaju interakciju: navedi ATC sifre, mehanizam interakcije,
-klinicki znacaj (blaga/umerena/ozbiljna) i preporuku. Ako nema interakcija, napisi "Nisu detektovane klinicki znacajne interakcije."]
+## INTERAKCIJE
+[Samo znacajne interakcije — naziv para, klinicki znacaj, kratka preporuka.
+Ako nema: "Nisu detektovane klinicki znacajne interakcije."]
 
 ## USKLADENOST SA DIJAGNOZAMA
-[Za svaki propisani lek proceni: da li je indikovan za navedene dijagnoze?
-Navedi ATC grupu i obrazlozenje.]
+[Za svaki lek jednom recenicom: indikovano/nije indikovano i zasto.]
 
 ## PREPORUKE
-[Konkretne, akcione preporuke za lekara — maksimalno 4 stavke.
-Fokus na bezbednost pacijenta.]
+[Maksimalno 3 konkretne preporuke za lekara.]"""
 
-## NAPOMENA
-Ovo je automatizovana savetodavna analiza bazirana na ATC/INN klasifikaciji.
-Ne zamenjuje klinicki pregled. Lekar donosi konacnu medicinsku odluku."""
+            import json as _json
+            analiza_tekst = ""
 
-            resp = requests.post(
-                f"{OLLAMA_URL}/api/generate",
-                json={
-                    "model": "qwen2.5:7b",
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.3, "num_predict": 1200}
-                },
-                timeout=300
-            )
+            if ANTHROPIC_API_KEY:
+                import anthropic as _anthropic
+                client = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+                with client.messages.stream(
+                    model="claude-opus-4-7",
+                    max_tokens=2048,
+                    messages=[{"role": "user", "content": prompt}]
+                ) as stream:
+                    analiza_tekst = stream.get_final_message().content[0].text
+            else:
+                # Fallback na Ollama ako nema Claude API ključa
+                resp = requests.post(
+                    f"{OLLAMA_URL}/api/generate",
+                    json={"model": "qwen2.5:7b", "prompt": prompt,
+                          "stream": False, "options": {"temperature": 0.3, "num_predict": 1200}},
+                    timeout=300
+                )
+                if resp.status_code == 200:
+                    analiza_tekst = resp.json().get("response", "")
 
-            if resp.status_code == 200:
-                analiza_tekst = resp.json().get("response", "")
+            if analiza_tekst:
                 upozorenja = []
                 for line in analiza_tekst.split(chr(10)):
                     if line.strip().startswith("UPOZORENJE:"):
                         upozorenja.append(line.strip().replace("UPOZORENJE:", "").strip())
-                import json as _json
                 with get_db() as db:
                     with db.cursor() as cur:
                         cur.execute("""UPDATE ai_analize
@@ -1672,44 +1837,113 @@ def ai_analiza_pdf(poseta_id):
             cur.execute("SELECT * FROM klinika WHERE id=1")
             klinika = cur.fetchone()
 
+    DARK      = colors.HexColor('#2c2c2c')
+    MID       = colors.HexColor('#5a6a7a')
+    SOFT_LINE = colors.HexColor('#c8d4dc')
+    SEC_BG    = colors.HexColor('#f4f6f8')
+    WARN_BG   = colors.HexColor('#fdfaf3')
+    WARN_LINE = colors.HexColor('#b8960c')
+
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm,
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=2*cm, bottomMargin=2.2*cm,
                             leftMargin=2.5*cm, rightMargin=2.5*cm)
     story = []
-    hs  = ParagraphStyle("h",  fontSize=16, fontName="Helvetica-Bold", alignment=TA_CENTER, spaceAfter=4)
-    ss  = ParagraphStyle("s",  fontSize=9,  fontName="Helvetica", alignment=TA_CENTER, textColor=colors.grey, spaceAfter=2)
-    ts  = ParagraphStyle("t",  fontSize=13, fontName="Helvetica-Bold", alignment=TA_CENTER, spaceBefore=10, spaceAfter=10)
-    sec = ParagraphStyle("sc", fontSize=10, fontName="Helvetica-Bold", textColor=colors.HexColor("#1a5276"), spaceBefore=12, spaceAfter=4)
-    bs  = ParagraphStyle("b",  fontSize=10, fontName="Helvetica", leading=14, spaceAfter=6)
-    ws  = ParagraphStyle("w",  fontSize=10, fontName="Helvetica", leading=14, spaceAfter=6,
-                         textColor=colors.HexColor("#7d3c00"), backColor=colors.HexColor("#fef9e7"))
-    nap = ParagraphStyle("n",  fontSize=9,  fontName="Helvetica", textColor=colors.grey, alignment=TA_CENTER, spaceBefore=20)
 
+    F  = 'DejaVu'
+    FB = 'DejaVu-Bold'
+    FI = 'DejaVuSerif'
+
+    hs = ParagraphStyle('h',  fontSize=20, fontName=FB, alignment=TA_LEFT, spaceAfter=2, textColor=DARK)
+    ss = ParagraphStyle('s',  fontSize=9,  fontName=FI, alignment=TA_LEFT, textColor=MID, spaceAfter=2)
+    ts = ParagraphStyle('t',  fontSize=13, fontName=FB, alignment=TA_LEFT,
+                        spaceBefore=6, spaceAfter=6, textColor=DARK)
+    bs = ParagraphStyle('b',  fontSize=10, fontName=FI, leading=16, spaceAfter=5, textColor=DARK)
+    nap = ParagraphStyle('n', fontSize=8,  fontName=FI, textColor=MID, alignment=TA_LEFT)
+
+    W = doc.width
+
+    def _sec_hdr(tekst):
+        tbl = Table([[Paragraph(tekst, ParagraphStyle('sh', fontSize=8, fontName=FB,
+                     textColor=MID, spaceAfter=0))]], colWidths=[W])
+        tbl.setStyle(TableStyle([
+            ('BACKGROUND',    (0,0),(-1,-1), SEC_BG),
+            ('TOPPADDING',    (0,0),(-1,-1), 5),
+            ('BOTTOMPADDING', (0,0),(-1,-1), 5),
+            ('LEFTPADDING',   (0,0),(-1,-1), 4),
+            ('RIGHTPADDING',  (0,0),(-1,-1), 4),
+            ('LINEBELOW',     (0,0),(-1,-1), 0.6, SOFT_LINE),
+        ]))
+        return tbl
+
+    # ── Zaglavlje ──
     story.append(Paragraph(klinika["naziv"] or "Medicinska Klinika", hs))
     if klinika["adresa"]: story.append(Paragraph(klinika["adresa"], ss))
-    story += [Spacer(1,.3*cm), HRFlowable(width="100%", thickness=2, color=colors.HexColor("#1a5276")),
-              Spacer(1,.3*cm), Paragraph("AI ANALIZA INTERAKCIJA I DIJAGNOZA", ts),
-              HRFlowable(width="100%", thickness=.5, color=colors.lightgrey), Spacer(1,.4*cm)]
-    story.append(Paragraph(f"Pacijent: {pacijent['ime']} {pacijent['prezime']}  |  Datum: {poseta['datum']}  |  Generisano: {datetime.now().strftime('%d.%m.%Y %H:%M')}", ss))
-    story.append(Spacer(1, .5*cm))
+    story.append(Spacer(1, .3*cm))
+    story.append(HRFlowable(width="100%", thickness=0.8, color=SOFT_LINE))
+    story.append(Spacer(1, .25*cm))
+    story.append(Paragraph('AI analiza lekova i dijagnoza', ts))
+    story.append(HRFlowable(width="100%", thickness=0.4, color=SOFT_LINE))
+    story.append(Spacer(1, .3*cm))
+    story.append(Paragraph(
+        f"<i>Pacijent:</i> <b>{pacijent['ime']} {pacijent['prezime']}</b>"
+        f"  ·  <i>Datum posete:</i> {poseta['datum']}"
+        f"  ·  <i>Generisano:</i> {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+        ParagraphStyle('meta', fontSize=9, fontName=FI, textColor=MID)))
+    story.append(Spacer(1, .45*cm))
 
+    # ── Tekst analize ──
     tekst = analiza["analiza_tekst"] or ""
     for line in tekst.split(chr(10)):
         line = line.strip()
         if not line:
-            story.append(Spacer(1, .15*cm))
+            story.append(Spacer(1, .12*cm))
         elif line.startswith("## "):
-            story.append(Paragraph(line[3:], sec))
+            story.append(Spacer(1, .15*cm))
+            story.append(_sec_hdr(line[3:]))
+            story.append(Spacer(1, .2*cm))
         elif line.startswith("UPOZORENJE:"):
-            story.append(Paragraph("&#9888; " + line.replace("UPOZORENJE:", "").strip(), ws))
+            warn_txt = line.replace("UPOZORENJE:", "").strip()
+            w_tbl = Table([[Paragraph(warn_txt,
+                ParagraphStyle('w', fontSize=9, fontName=FI, textColor=colors.HexColor('#6b4c00'), leading=14))
+            ]], colWidths=[doc.width])
+            w_tbl.setStyle(TableStyle([
+                ('BACKGROUND',  (0,0),(-1,-1), WARN_BG),
+                ('LINEBEFORE',  (0,0),(0,-1),  3, WARN_LINE),
+                ('TOPPADDING',    (0,0),(-1,-1), 7),
+                ('BOTTOMPADDING', (0,0),(-1,-1), 7),
+                ('LEFTPADDING',   (0,0),(-1,-1), 12),
+            ]))
+            story += [w_tbl, Spacer(1, .1*cm)]
+        elif line.startswith('- ') or line.startswith('* '):
+            clean = _re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", line[2:])
+            story.append(Paragraph(f"·  {clean}",
+                ParagraphStyle('bl', fontSize=10, fontName=FI, leading=15,
+                               leftIndent=10, spaceAfter=3, textColor=DARK)))
         else:
             clean = _re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", line)
             story.append(Paragraph(clean, bs))
 
-    story += [Spacer(1, 1.5*cm),
-              HRFlowable(width="100%", thickness=.5, color=colors.lightgrey),
-              Spacer(1, .3*cm),
-              Paragraph("Ovo je automatizovana savetodavna analiza AI sistema. Ne zamenjuje klinicki pregled. Lekar donosi konacnu medicinsku odluku.", nap)]
+    # ── Disclaimer ──
+    story.append(Spacer(1, 1*cm))
+    disc_tbl = Table([[
+        Paragraph(
+            "<b>Napomena:</b> <i>Ovo je automatizovana savetodavna analiza AI sistema. "
+            "Ne zamenjuje klinički pregled niti stručnu procenu lekara. "
+            "Konačnu medicinsku odluku uvek donosi doktor.</i>",
+            ParagraphStyle('disc', fontSize=8, fontName=FI, textColor=colors.HexColor('#6b4c00'), leading=13)),
+    ]], colWidths=[doc.width])
+    disc_tbl.setStyle(TableStyle([
+        ('BACKGROUND',    (0,0),(-1,-1), WARN_BG),
+        ('LINEBEFORE',    (0,0),(0,-1),  3, WARN_LINE),
+        ('TOPPADDING',    (0,0),(-1,-1), 8),
+        ('BOTTOMPADDING', (0,0),(-1,-1), 8),
+        ('LEFTPADDING',   (0,0),(-1,-1), 12),
+        ('RIGHTPADDING',  (0,0),(-1,-1), 12),
+    ]))
+    story += [disc_tbl, Spacer(1, .5*cm),
+              HRFlowable(width="100%", thickness=0.4, color=SOFT_LINE),
+              Spacer(1, .2*cm),
+              Paragraph(f"<i>Model: claude-opus-4-7  ·  {datetime.now().strftime('%d.%m.%Y %H:%M')}</i>", nap)]
     doc.build(story)
     buf.seek(0)
     fn = f"ai_analiza_{pacijent['prezime']}_{poseta['datum']}.pdf"

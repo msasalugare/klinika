@@ -151,11 +151,11 @@
       </div>
     </div>
 
-    <div class="alert alert-light border mt-3 small text-muted text-center">
-      <i class="bi bi-info-circle me-1"></i>
-      Ovo je automatizovana savetodavna analiza AI sistema.
-      Ne zamenjuje klinički pregled niti stručnu procenu lekara.
-      <strong>Lekar donosi konačnu medicinsku odluku.</strong>
+    <div class="alert alert-warning border-warning mt-3 text-center">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      <strong>NAPOMENA: Ovo je automatizovana savetodavna analiza AI sistema i služi isključivo kao pomoć u radu.</strong>
+      <br>
+      <strong>Ne zamenjuje klinički pregled niti stručnu procenu lekara. Konačnu medicinsku odluku uvek donosi doktor.</strong>
     </div>
 
     {% elif analiza and analiza.status == 'greska' %}
