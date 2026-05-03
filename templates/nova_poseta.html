@@ -1,25 +1,36 @@
 {% extends 'base.html' %}
 {% block title %}Nova poseta — {{ pacijent.ime }} {{ pacijent.prezime }}{% endblock %}
+{% block head %}
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+{% endblock %}
 {% block content %}
 <div class="page-header">
   <h1><i class="bi bi-journal-plus me-2"></i>Nova poseta</h1>
   <p class="text-muted mb-0">Pacijent: <strong>{{ pacijent.prezime }}, {{ pacijent.ime }}</strong></p>
 </div>
 
-<div class="card" style="max-width:740px">
-  <div class="card-body">
-    <form method="post" id="forma-poseta">
+<form method="post" id="forma-poseta">
+
+  <!-- ANAMNEZA — full-width rich text editor -->
+  <div class="card mb-3">
+    <div class="card-body p-0">
+      <label class="form-label fw-semibold px-3 pt-3 mb-1 d-block" style="font-size:1rem">
+        <i class="bi bi-pencil-square me-1 text-primary"></i>Anamneza
+        <span class="text-muted fw-normal small ms-1">— tegobe, simptomi, trajanje</span>
+      </label>
+      <div id="anamneza-editor" style="min-height:220px;font-size:.97rem;border:none;border-top:1px solid #dee2e6"></div>
+      <input type="hidden" name="anamneza" id="anamneza-hidden">
+    </div>
+  </div>
+
+  <!-- DATUM + DIJAGNOZA + TERAPIJA + NAPOMENA — full-width -->
+  <div class="card">
+    <div class="card-body">
       <div class="row g-3">
 
-        <div class="col-sm-4">
+        <div class="col-sm-3 col-md-2">
           <label class="form-label fw-semibold">Datum <span class="text-danger">*</span></label>
           <input type="date" name="datum" class="form-control" value="{{ danas }}" required>
-        </div>
-
-        <div class="col-12">
-          <label class="form-label fw-semibold">Anamneza</label>
-          <textarea name="anamneza" class="form-control" rows="3"
-                    placeholder="Tegobe, simptomi, trajanje..."></textarea>
         </div>
 
         <!-- MKB-10 Dijagnoze -->
@@ -60,44 +71,51 @@
           </button>
         </div>
 
-        <!-- Lekovi -->
+        <!-- Lekovi — levo ime, desno način uzimanja i doza -->
         <div class="col-12">
           <label class="form-label fw-semibold">
             Terapija
-            <span class="text-muted fw-normal small ms-1">— do 5 lekova</span>
+            <span class="text-muted fw-normal small ms-1">— do 10 lekova</span>
           </label>
+          <div class="row g-1 mb-1 d-none d-sm-flex">
+            <div class="col-sm-6 col-lg-5">
+              <span class="small text-muted ps-5">Naziv leka</span>
+            </div>
+            <div class="col-sm-6 col-lg-7">
+              <span class="small text-muted">Način uzimanja i doza</span>
+            </div>
+          </div>
           <div id="lekovi-kontejner">
-            {% for i in range(1, 6) %}
-            <div class="lek-red mb-2 position-relative {% if i > 1 %}d-none{% endif %}" id="lred-{{ i }}">
-              <div class="input-group">
-                <span class="input-group-text text-muted small" style="width:32px;justify-content:center">{{ i }}</span>
-                <input type="text" class="form-control lek-input" id="lek-inp-{{ i }}"
-                       placeholder="{% if i == 1 %}Naziv leka...{% else %}Dodatni lek{% endif %}"
-                       autocomplete="off" data-idx="{{ i }}">
-                <button type="button" class="btn btn-outline-secondary lek-clr"
-                        data-idx="{{ i }}" style="display:none">✕</button>
-                {% if i > 1 %}
-                <button type="button" class="btn btn-outline-danger ukloni-lred" data-idx="{{ i }}">
-                  <i class="bi bi-dash"></i>
-                </button>
-                {% endif %}
-              </div>
-              <input type="hidden" name="lek_naziv_{{ i }}" id="lek-naziv-{{ i }}">
-              <input type="hidden" name="lek_inn_{{ i }}" id="lek-inn-{{ i }}">
-              <input type="hidden" name="lek_atc_{{ i }}" id="lek-atc-{{ i }}">
-              <input type="hidden" name="lek_oblik_{{ i }}" id="lek-oblik-{{ i }}">
-              <input type="hidden" name="lek_jacina_{{ i }}" id="lek-jacina-{{ i }}">
-              <div class="lek-dd dropdown-menu shadow" id="lek-dd-{{ i }}"
-                   style="display:none;max-height:260px;overflow-y:auto;position:absolute;z-index:1000;min-width:420px;top:100%"></div>
-              <div class="lek-meta-panel mt-1" id="lek-meta-{{ i }}" style="display:none">
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                  <span class="badge bg-success py-1 px-2 small">
-                    <i class="bi bi-capsule me-1"></i><span class="lek-badge-naziv"></span>
-                  </span>
-                  <input type="text" name="lek_doza_{{ i }}" class="form-control form-control-sm"
-                         placeholder="Doza (npr. 500mg, 1 tableta)" style="max-width:200px">
+            {% for i in range(1, 11) %}
+            <div class="lek-red mb-2 {% if i > 1 %}d-none{% endif %}" id="lred-{{ i }}">
+              <div class="row g-2 align-items-center">
+                <div class="col-sm-6 col-lg-5 position-relative">
+                  <div class="input-group">
+                    <span class="input-group-text text-muted small" style="width:32px;justify-content:center">{{ i }}</span>
+                    <input type="text" class="form-control lek-input" id="lek-inp-{{ i }}"
+                           placeholder="{% if i == 1 %}Naziv leka...{% else %}Naziv leka{% endif %}"
+                           autocomplete="off" data-idx="{{ i }}">
+                    <button type="button" class="btn btn-outline-secondary lek-clr"
+                            data-idx="{{ i }}" style="display:none">✕</button>
+                  </div>
+                  <div class="lek-dd dropdown-menu shadow" id="lek-dd-{{ i }}"
+                       style="display:none;max-height:260px;overflow-y:auto;position:absolute;z-index:1000;min-width:340px;top:100%;left:0"></div>
+                </div>
+                <div class="col-sm-6 col-lg-7 d-flex gap-2">
+                  <input type="text" name="lek_doza_{{ i }}" id="lek-doza-{{ i }}"
+                         class="form-control" placeholder="Način uzimanja, doza (npr. 1×1, 500mg)">
+                  {% if i > 1 %}
+                  <button type="button" class="btn btn-outline-danger ukloni-lred flex-shrink-0" data-idx="{{ i }}">
+                    <i class="bi bi-dash"></i>
+                  </button>
+                  {% endif %}
                 </div>
               </div>
+              <input type="hidden" name="lek_naziv_{{ i }}" id="lek-naziv-{{ i }}">
+              <input type="hidden" name="lek_inn_{{ i }}"   id="lek-inn-{{ i }}">
+              <input type="hidden" name="lek_atc_{{ i }}"   id="lek-atc-{{ i }}">
+              <input type="hidden" name="lek_oblik_{{ i }}" id="lek-oblik-{{ i }}">
+              <input type="hidden" name="lek_jacina_{{ i }}" id="lek-jacina-{{ i }}">
             </div>
             {% endfor %}
           </div>
@@ -121,9 +139,10 @@
         </div>
 
       </div>
-    </form>
+    </div>
   </div>
-</div>
+
+</form>
 
 <style>
 .mkb-item,.lek-item{padding:.45rem 1rem;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:.87rem}
@@ -134,7 +153,21 @@
 .lek-meta-txt{color:#888;font-size:.8rem}
 </style>
 
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
+// ── Quill rich text editor za Anamnezu ───────────────────────────────────────
+const quill = new Quill('#anamneza-editor', {
+  theme: 'snow',
+  placeholder: 'Tegobe, simptomi, trajanje...',
+  modules: {
+    toolbar: [
+      ['bold', 'italic', 'underline'],
+      [{ list: 'ordered' }, { list: 'bullet' }],
+      ['clean']
+    ]
+  }
+});
+
 // ── MKB-10 autocomplete ───────────────────────────────────────────────────────
 const mkbSt = {};
 function mkbInit(idx) {
@@ -195,7 +228,6 @@ function mkbIzaberi(idx, item) {
   const clr = document.getElementById(`mkb-inp-${idx}`).parentElement.querySelector('.mkb-clr');
   if (clr) clr.style.display = 'block';
   mkbZatvori(idx);
-  // Automatski otvori sledeći red
   const sled = idx + 1;
   if (sled <= 10) {
     const r = document.getElementById(`dred-${sled}`);
@@ -235,15 +267,13 @@ mkbInit(1);
 const lekSt = {};
 function lekInit(idx) {
   lekSt[idx] = {ak:-1, res:[], timer:null};
-  const inp  = document.getElementById(`lek-inp-${idx}`);
-  const dd   = document.getElementById(`lek-dd-${idx}`);
-  const meta = document.getElementById(`lek-meta-${idx}`);
-  const clr  = inp.parentElement.querySelector('.lek-clr');
+  const inp = document.getElementById(`lek-inp-${idx}`);
+  const dd  = document.getElementById(`lek-dd-${idx}`);
+  const clr = inp.parentElement.querySelector('.lek-clr');
 
   inp.addEventListener('input', () => {
     clearTimeout(lekSt[idx].timer);
     document.getElementById(`lek-naziv-${idx}`).value = '';
-    meta.style.display = 'none';
     if (clr) clr.style.display = inp.value ? 'block' : 'none';
     if (inp.value.trim().length < 2) { lekZatvori(idx); return; }
     lekSt[idx].timer = setTimeout(() => lekTrazi(idx, inp.value.trim()), 300);
@@ -252,13 +282,12 @@ function lekInit(idx) {
     const items = dd.querySelectorAll('.lek-item');
     if (e.key==='ArrowDown'){e.preventDefault();lekSt[idx].ak=Math.min(lekSt[idx].ak+1,items.length-1);lekOsveziAk(idx,items);}
     else if(e.key==='ArrowUp'){e.preventDefault();lekSt[idx].ak=Math.max(lekSt[idx].ak-1,0);lekOsveziAk(idx,items);}
-    else if(e.key==='Enter'){e.preventDefault();if(lekSt[idx].ak>=0&&lekSt[idx].res[lekSt[idx].ak])lekIzaberi(idx,lekSt[idx].res[lekSt[idx].ak]);}
+    else if(e.key==='Enter'){e.preventDefault();if(lekSt[idx].ak>=0&&lekSt[idx].res[lekSt[idx].ak])lekIzaberi(idx,lekSt[idx].res[lekSt[idx].ak]);else lekRucni(idx);}
     else if(e.key==='Escape')lekZatvori(idx);
   });
   if (clr) clr.addEventListener('click', () => {
     inp.value=''; document.getElementById(`lek-naziv-${idx}`).value='';
-    meta.style.display='none'; clr.style.display='none';
-    lekZatvori(idx); inp.focus();
+    clr.style.display='none'; lekZatvori(idx); inp.focus();
   });
   document.addEventListener('click', e => { if(!e.target.closest(`#lred-${idx}`)) lekZatvori(idx); });
 }
@@ -300,29 +329,23 @@ function lekIzaberi(idx, item) {
   document.getElementById(`lek-atc-${idx}`).value = item.atc_sifra || '';
   document.getElementById(`lek-oblik-${idx}`).value = item.farmaceutski_oblik || '';
   document.getElementById(`lek-jacina-${idx}`).value = item.jacina || '';
-  const meta = document.getElementById(`lek-meta-${idx}`);
-  meta.querySelector('.lek-badge-naziv').textContent = naziv;
-  meta.style.display = 'block';
   const clr = document.getElementById(`lek-inp-${idx}`).parentElement.querySelector('.lek-clr');
   if (clr) clr.style.display = 'block';
   lekZatvori(idx);
-  // Automatski otvori sledeći
+  document.getElementById(`lek-doza-${idx}`)?.focus();
   const sled = idx + 1;
-  if (sled <= 5) {
+  if (sled <= 10) {
     const r = document.getElementById(`lred-${sled}`);
     if (r && r.classList.contains('d-none')) { r.classList.remove('d-none'); if(!lekSt[sled]) lekInit(sled); }
   }
 }
-// Ručni unos leka (Enter bez izbora iz liste)
-function lekRucniUnos(idx) {
+function lekRucni(idx) {
   const inp = document.getElementById(`lek-inp-${idx}`);
   const naziv = inp.value.trim();
   if (!naziv) return;
   document.getElementById(`lek-naziv-${idx}`).value = naziv;
-  const meta = document.getElementById(`lek-meta-${idx}`);
-  meta.querySelector('.lek-badge-naziv').textContent = naziv;
-  meta.style.display = 'block';
   lekZatvori(idx);
+  document.getElementById(`lek-doza-${idx}`)?.focus();
 }
 function lekOsveziAk(idx, items) {
   items.forEach((el,i) => el.classList.toggle('ak', i===lekSt[idx].ak));
@@ -332,13 +355,13 @@ function lekZatvori(idx) { document.getElementById(`lek-dd-${idx}`).style.displa
 
 let lekVidljivih = 1;
 document.getElementById('dodaj-lek').addEventListener('click', () => {
-  if (lekVidljivih >= 5) return;
+  if (lekVidljivih >= 10) return;
   lekVidljivih++;
   const r = document.getElementById(`lred-${lekVidljivih}`);
   r.classList.remove('d-none');
   if (!lekSt[lekVidljivih]) lekInit(lekVidljivih);
   document.getElementById(`lek-inp-${lekVidljivih}`).focus();
-  if (lekVidljivih >= 5) document.getElementById('dodaj-lek').style.display = 'none';
+  if (lekVidljivih >= 10) document.getElementById('dodaj-lek').style.display = 'none';
 });
 document.querySelectorAll('.ukloni-lred').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -346,23 +369,20 @@ document.querySelectorAll('.ukloni-lred').forEach(btn => {
     document.getElementById(`lred-${idx}`).classList.add('d-none');
     document.getElementById(`lek-inp-${idx}`).value = '';
     document.getElementById(`lek-naziv-${idx}`).value = '';
-    document.getElementById(`lek-meta-${idx}`).style.display = 'none';
+    document.getElementById(`lek-doza-${idx}`).value = '';
     if (lekVidljivih === idx) lekVidljivih--;
     document.getElementById('dodaj-lek').style.display = '';
   });
 });
+lekInit(1);
 
-// Submit — ručni unos za lekove koji nisu izabrani iz liste
-document.getElementById('forma-poseta').addEventListener('submit', () => {
-  for (let i = 1; i <= 5; i++) {
+document.getElementById('forma-poseta').addEventListener('submit', function() {
+  document.getElementById('anamneza-hidden').value = quill.root.innerHTML;
+  for (let i = 1; i <= 10; i++) {
     const inp = document.getElementById(`lek-inp-${i}`);
     const val = document.getElementById(`lek-naziv-${i}`);
-    if (inp && inp.value.trim() && !val.value.trim()) {
-      val.value = inp.value.trim(); // prihvati ručni unos
-    }
+    if (inp && inp.value.trim() && !val.value.trim()) val.value = inp.value.trim();
   }
 });
-
-lekInit(1);
 </script>
 {% endblock %}

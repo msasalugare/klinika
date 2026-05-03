@@ -820,9 +820,9 @@ def nova_poseta(pid):
                     if d:
                         dijagnoze.append(d)
                 dijagnoza_json = _json.dumps(dijagnoze, ensure_ascii=False) if dijagnoze else '[]'
-                # Skupi lekove iz posete (do 5)
+                # Skupi lekove iz posete (do 10)
                 lekovi_posete = []
-                for i in range(1, 6):
+                for i in range(1, 11):
                     naziv = request.form.get(f'lek_naziv_{i}', '').strip()
                     if naziv:
                         lekovi_posete.append({
